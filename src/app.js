@@ -4,8 +4,10 @@ import {
   BAIL_LINES, BRAND, CHECK_QS, CLOSER, CONTEXT_LINES, DEFAULT_THINK_MOVE, DONE_LINES, DOOR, DREAD, HOME_CTA, INTRO, INTRO_CARDS,
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
+  DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, THEMES, TIMER_LINES, WARDROBE_INFO,
 } from './content.js';
-import { brainSVG, updateBrain } from './brain.js';
+import { brainSVG, setWorn, updateBrain } from './brain.js';
+import { canNudge, clearNudges, haptic, requestReview, scheduleNudges } from './native.js';
 import {
   fontsReady, renderLifetimeCard, renderObjectionCard, renderQuizCard, renderReceiptCard, toBlob,
 } from './cards.js';
@@ -17,11 +19,12 @@ const KEY = 'rmaxxing.v1';
 const DEFAULTS = {
   w: null, startW: null, typeName: null, quizSeconds: null, wis: C.START_WIS,
   streak: 0, lastDay: null, lastSeen: null, installLater: null,
+  wear: null, closetOrder: null, nudge: null,
   receipts: [], read: [], dailyDone: {}, active: null,
 };
 
 // seen: shuffle-bag rounds per pool. found: what the Vault has collected for good.
-const blank = () => ({ ...DEFAULTS, receipts: [], read: [], dailyDone: {}, seen: {}, found: { koans: [], rares: [], heard: [] } });
+const blank = () => ({ ...DEFAULTS, receipts: [], read: [], dailyDone: {}, seen: {}, found: { koans: [], rares: [], heard: [] }, closet: [], reviewAt: [] });
 
 // Fills gaps in older saves and backup codes, so new features never meet a missing field.
 function hydrate(saved) {
@@ -35,10 +38,23 @@ function hydrate(saved) {
     dailyDone: s.dailyDone && typeof s.dailyDone === 'object' ? s.dailyDone : {},
     seen: s.seen && typeof s.seen === 'object' ? s.seen : {},
     found: { ...b.found, ...(s.found && typeof s.found === 'object' ? s.found : {}) },
+    closet: Array.isArray(s.closet) ? s.closet : [],
+    reviewAt: Array.isArray(s.reviewAt) ? s.reviewAt : [],
   };
 }
 
+// Each person gets their own wardrobe order, so friends don't all get the same hat first.
+function ensureCloset() {
+  const ids = WARDROBE_INFO.map((p) => p.id);
+  if (!Array.isArray(S.closetOrder) || S.closetOrder.length !== ids.length || ids.some((id) => !S.closetOrder.includes(id))) {
+    S.closetOrder = C.shuffled(ids);
+  }
+  if (S.wear && !S.closet.includes(S.wear)) S.wear = null;
+  setWorn(S.wear);
+}
+
 let S = load();
+ensureCloset();
 let view = { name: 'home' };
 let timerId = null;
 let quizRun = null;
@@ -110,7 +126,7 @@ function nextOpening(d = days()) {
   return { kind: 'packs', ...b };
 }
 const installed = () => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
-const buzz = (ms = 12) => { try { navigator.vibrate?.(ms); } catch { /* Not supported. */ } };
+const buzz = (ms = 12) => haptic(typeof ms !== 'number' ? 'success' : ms >= 45 ? 'heavy' : ms >= 25 ? 'medium' : 'light');
 const calm = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 function toast(msg) {
@@ -161,21 +177,55 @@ function shake() {
   root.classList.add('shake');
 }
 
-function brainRain(count = 22) {
+// Particle shapes for celebrations. The brain is the mascot; the rest keep it from being the same rain every time.
+const PARTICLES = {
+  star: (c) => `<svg viewBox="0 0 24 24"><path d="M12 1l3.2 7 7.6.8-5.7 5.1 1.6 7.5L12 17.6 5.3 21.4l1.6-7.5L1.2 8.8 8.8 8z" fill="${c}"/></svg>`,
+  confetti: (c) => `<svg viewBox="0 0 10 16"><rect width="10" height="16" rx="2" fill="${c}"/></svg>`,
+  bolt: (c) => `<svg viewBox="0 0 24 24"><path d="M14 1L3 14h7l-2 9 11-13h-7z" fill="${c}" stroke="#0B0B0B" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+  juice: () => '<svg viewBox="0 0 20 28"><path d="M13 0v6" stroke="#0B0B0B" stroke-width="2"/><rect x="2" y="5" width="16" height="22" rx="2" fill="#FF9F1C" stroke="#0B0B0B" stroke-width="1.5"/><circle cx="10" cy="16" r="5" fill="#FFE500"/></svg>',
+  dot: (c) => `<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="${c}"/></svg>`,
+};
+const PARTY = ['#FFE500', '#FF3D8B', '#3BD1FF', '#7CFF4F', '#FF7A00', '#FFFFFF'];
+// Dealt like a deck, so every finish looks different from the last few.
+const CELEBRATIONS = [
+  { shape: 'brain', motion: 'fall' }, { shape: 'star', motion: 'burst' }, { shape: 'confetti', motion: 'fall' },
+  { shape: 'bolt', motion: 'fountain' }, { shape: 'juice', motion: 'fall' }, { shape: 'mixed', motion: 'burst' },
+  { shape: 'confetti', motion: 'fountain' }, { shape: 'star', motion: 'fall' }, { shape: 'dot', motion: 'burst' },
+];
+const FLASHES = ['sun', 'pink', 'blue', 'lime', 'white'];
+
+function celebrate({ shape = 'brain', motion = 'fall', count = 22 } = {}) {
   if (calm()) return;
   const layer = document.createElement('div');
-  layer.className = 'rain';
+  layer.className = `rain m-${motion}`;
   layer.setAttribute('aria-hidden', 'true');
-  const one = brainSVG(10);
+  const brain = brainSVG(10);
+  const kinds = Object.keys(PARTICLES);
   let html = '';
   for (let i = 0; i < count; i++) {
-    const style = `left:${Math.random() * 100}%;width:${34 + Math.random() * 46}px;--spin:${(Math.random() * 720 - 360).toFixed(0)}deg;animation-delay:${(Math.random() * 0.5).toFixed(2)}s;animation-duration:${(1 + Math.random() * 0.8).toFixed(2)}s`;
-    html += `<span style="${style}">${one}</span>`;
+    const kind = shape === 'mixed' ? (i % 4 === 0 ? 'brain' : kinds[i % kinds.length]) : shape;
+    const color = PARTY[Math.floor(Math.random() * PARTY.length)];
+    const svg = kind === 'brain' ? brain : PARTICLES[kind](color);
+    const size = kind === 'brain' ? 34 + Math.random() * 46 : kind === 'confetti' || kind === 'dot' ? 10 + Math.random() * 14 : 22 + Math.random() * 26;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 30 + Math.random() * 45;
+    const style = [
+      `left:${motion === 'fall' ? (Math.random() * 100).toFixed(1) : 50}%`,
+      `width:${size.toFixed(0)}px`,
+      `--spin:${(Math.random() * 720 - 360).toFixed(0)}deg`,
+      `--dx:${(Math.cos(angle) * dist).toFixed(1)}vw`,
+      `--dy:${(Math.sin(angle) * dist).toFixed(1)}vh`,
+      `--x0:${(Math.random() * 70 - 35).toFixed(1)}vw`,
+      `animation-delay:${(Math.random() * (motion === 'burst' ? 0.12 : 0.5)).toFixed(2)}s`,
+      `animation-duration:${(1 + Math.random() * 0.8).toFixed(2)}s`,
+    ].join(';');
+    html += `<span style="${style}">${svg}</span>`;
   }
   layer.innerHTML = html;
   document.body.appendChild(layer);
-  setTimeout(() => layer.remove(), 2600);
+  setTimeout(() => layer.remove(), 2900);
 }
+const brainRain = (count = 22) => celebrate({ shape: 'brain', motion: 'fall', count });
 
 // ---------- rendering ----------
 
@@ -191,6 +241,7 @@ function render() {
   introTimers.forEach(clearTimeout);
   introTimers = [];
   const fn = VIEWS[view.name] || VIEWS.home;
+  sfx.setTier(S.w == null || S.w >= 65 ? 0 : S.w >= 40 ? 1 : S.w >= 15 ? 2 : 3);
   const { tone = '', html } = fn();
   document.documentElement.dataset.tone = tone;
   root.innerHTML = html;
@@ -264,7 +315,7 @@ VIEWS.home = () => {
         </span>
       </header>
       <section class="hero">
-        <div class="hero-brain">${brainSVG(w, 'wobble')}${stickerSVG('NOT A THOUGHT ★ HEAD EMPTY ★ ')}</div>
+        <button class="hero-brain" data-a="poke" aria-label="Poke the brain">${brainSVG(w, 'wobble')}${stickerSVG('NOT A THOUGHT ★ HEAD EMPTY ★ ')}<span class="bubble" aria-live="polite"></span></button>
         <h1 class="score">${w}% <small>WRINKLED${S.streak > 1 ? ` · DAY ${S.streak}` : ''}</small></h1>
         ${statBars(w, S.wis)}
       </section>
@@ -274,8 +325,9 @@ VIEWS.home = () => {
         <strong>${esc(dailyMove(today))}</strong>
         <span class="tag">${done ? 'DONE' : 'DO IT'}</span>
       </button>
-      <div class="home-links">
+      <div class="home-links three">
         <button class="mini-link" data-a="objection">BUT WHAT IF…</button>
+        <button class="mini-link" data-a="spin">SPIN A DARE</button>
         <button class="mini-link" data-a="check">HEAD STUCK?</button>
       </div>
       ${teaser()}
@@ -451,14 +503,19 @@ VIEWS.objection = () => {
   };
 };
 VIEWS.objection.after = () => {
-  sfx.boom();
-  shake();
+  sfx.whine();
+  clearTimeout(VIEWS.objection.t);
+  VIEWS.objection.t = setTimeout(() => {
+    if (view.name !== 'objection') return;
+    sfx.boom();
+    shake();
+  }, 260);
 };
 
 // ---------- the loop ----------
 
 function newLoop(fields = {}) {
-  return { step: 'thing', trail: [], thing: '', move: '', answers: {}, doorI: 0, thoughtMin: null, dread: null, reality: null, outcome: null, verdict: null, kind: null, source: 'free', dur: 600, startedAt: null, doneSec: null, createdAt: Date.now(), ...fields };
+  return { step: 'thing', trail: [], thing: '', move: '', answers: {}, doorI: 0, thoughtMin: null, dread: null, reality: null, outcome: null, verdict: null, kind: null, source: 'free', dur: 600, startedAt: null, doneSec: null, createdAt: Date.now(), theme: fresh('theme', THEMES).item, ...fields };
 }
 
 function loopTo(next, { push = true } = {}) {
@@ -567,6 +624,7 @@ const STEPS = {
         <div class="dread-pills">${DREAD.map((d, i) => `<button class="pill-btn" data-a="dread-pick" data-v="${i}" aria-pressed="${L.dread === i}">${d.toUpperCase()}</button>`).join('')}</div>
       </div>`;
     return {
+      tone: L.theme || '',
       html: step({
         title: think ? 'THE FIRST|10 MINUTES:' : 'FIRST|TINY STEP:',
         max: 96,
@@ -605,13 +663,15 @@ const STEPS = {
   timer: (L) => {
     const running = !!L.startedAt;
     return {
-      tone: 'sun',
+      tone: L.theme || 'sun',
       html: step({
         title: running ? 'NOT A THOUGHT.' : 'NOTHING TO DECIDE.',
         progress: PROGRESS.timer,
         back: !running,
         center: true,
-        body: `<div class="clock" id="clock" role="timer">${C.fmtClock(running ? remaining(L) : L.dur)}</div>
+        body: `<div class="timer-brain ${running ? 'bob' : ''}">${brainSVG(S.w ?? 60, 'tiny')}</div>
+          <div class="clock" id="clock" role="timer">${C.fmtClock(running ? remaining(L) : L.dur)}</div>
+          ${running ? `<p class="hype in" id="hype">${esc(L.hype || '')}</p>` : ''}
           <p class="plan">${esc(L.move || L.thing)}</p>
           ${L.draft ? `<div class="draft-mini"><p>${esc(L.draft)}</p><button class="link" data-a="draft-copy">Copy it again</button></div>` : ''}
           ${running ? '' : '<button class="link" data-a="objection">But what if…</button>'}
@@ -676,10 +736,31 @@ function startTick() {
   const clock = document.getElementById('clock');
   const note = document.getElementById('clock-note');
   let rang = remaining(S.active) <= 0;
+  const hype = document.getElementById('hype');
+  const nextHype = () => {
+    if (!hype || !S.active) return;
+    S.active.hype = fresh('timer', TIMER_LINES).item;
+    hype.textContent = S.active.hype;
+    hype.classList.remove('in');
+    void hype.offsetWidth;
+    hype.classList.add('in');
+  };
+  if (hype && !S.active.hype) nextHype();
+  let hypeAt = Date.now();
+  let lastCount = null;
   const tick = () => {
     if (!S.active) return;
     const left = remaining(S.active);
     if (clock) clock.textContent = C.fmtClock(left);
+    if (Date.now() - hypeAt > 15000) {
+      hypeAt = Date.now();
+      nextHype();
+    }
+    const sec = Math.ceil(left);
+    if (left > 0 && sec <= 5 && sec !== lastCount) {
+      lastCount = sec;
+      sfx.tick(1 + (5 - sec) * 0.12);
+    }
     if (left <= 0 && !rang) {
       rang = true;
       buzz([120, 60, 120]);
@@ -742,7 +823,18 @@ function finishLoop() {
   ];
   // Ask the browser not to clear this site's data. Harmless if it says no.
   if (firstEver && !framed) navigator.storage?.persist?.().catch(() => {});
-  go('close', { receipt, before, after, wisDelta, showThing: false, fresh: true, line, unlocked, forgiven });
+  const finished = S.receipts.filter((x) => x.outcome !== 'bailed').length;
+  const drip = L.outcome === 'bailed' ? null : C.dripDue(finished, S.closet, S.closetOrder, DRIP_AT);
+  if (drip) S.closet.push(drip);
+  // Ask for a rating right after a win, twice ever. The system decides whether it actually shows.
+  if (L.outcome !== 'bailed' && [3, 12].includes(finished) && !S.reviewAt.includes(finished)) {
+    S.reviewAt.push(finished);
+    setTimeout(requestReview, 2600);
+  }
+  save();
+  refreshNudges();
+  const flash = receipt.legendary ? 'sun' : fresh('flash', FLASHES).item;
+  go('close', { receipt, before, after, wisDelta, showThing: false, fresh: true, line, unlocked, forgiven, drip, flash });
 }
 
 // ---------- close and receipts ----------
@@ -793,7 +885,7 @@ function closeLine(r, ctx) {
 }
 
 VIEWS.close = () => {
-  const { receipt: r, before, after, wisDelta, showThing, fresh, fromHistory, line, unlocked = [], forgiven } = view;
+  const { receipt: r, before, after, wisDelta, showThing, fresh, fromHistory, line, unlocked = [], forgiven, drip, flash } = view;
   const toggle = `<label class="toggle"><input type="checkbox" data-c="show-thing" ${showThing ? 'checked' : ''}> Show what it was</label>`;
   if (fromHistory) {
     return {
@@ -812,7 +904,7 @@ VIEWS.close = () => {
   const bailed = r.outcome === 'bailed';
   const stats = bailed ? 'NO PENALTY' : [intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join(' · ');
   const levelLines = bailed ? 'NO|PENALTY.' : [r.legendary ? 'LEGENDARY' : '', intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join('|');
-  const overlay = fresh ? `<div class="levelup ${bailed ? 'sad' : ''}" id="levelup" data-a="skip-level">${big(levelLines, { max: 190, slam: true, center: true })}</div>` : '';
+  const overlay = fresh ? `<div class="levelup ${bailed ? 'sad' : `f-${flash || 'sun'}`}" id="levelup" data-a="skip-level">${big(levelLines, { max: 190, slam: true, center: true })}</div>` : '';
   return {
     html: `<main class="screen close">
       <div class="close-head">
@@ -825,6 +917,7 @@ VIEWS.close = () => {
       ${r.legendary ? '<p class="legend-tag">★ LEGENDARY RECEIPT ★</p>' : ''}
       <p class="close-line">${esc(line || '')}</p>
       ${forgiven ? '<p class="forgiven">You skipped yesterday. Streak kept. A day off is a day off.</p>' : ''}
+      ${drip ? dripCard(drip, after) : ''}
       ${unlocked.map((u) => `<button class="unlock-card" data-a="${u.kind === 'lessons' ? 'lesson' : 'pack'}" data-id="${u.id}">
         <b>UNLOCKED</b><span>${esc(unlockName(u.kind, u.id))}</span></button>`).join('')}
       ${receiptHTML(r, showThing)}
@@ -836,6 +929,22 @@ VIEWS.close = () => {
     </main>${overlay}`,
   };
 };
+
+// A new piece of drip: shown on the brain, one tap to put it on.
+function dripCard(id, w) {
+  const info = WARDROBE_INFO.find((p) => p.id === id);
+  if (!info) return '';
+  const wearing = S.wear === id;
+  return `<div class="drip-card">
+    <div class="drip-brain">${brainSVG(w, 'tiny', id)}</div>
+    <div class="drip-text">
+      <b>NEW DRIP</b>
+      <strong>${esc(info.name)}</strong>
+      <span>${esc(info.line)}</span>
+      <button class="btn" data-a="wear" data-id="${id}">${wearing ? 'TAKE IT OFF' : 'WEAR IT'}</button>
+    </div>
+  </div>`;
+}
 
 function dismissLevelUp() {
   const el = document.getElementById('levelup');
@@ -868,8 +977,17 @@ VIEWS.close.after = () => {
   buzz(50);
   if (bailed) sfx.womp();
   else {
-    sfx.horn();
-    brainRain(view.receipt.legendary ? 48 : 22);
+    const r = view.receipt;
+    if (r.legendary) {
+      sfx.legendary();
+      celebrate({ shape: 'star', motion: 'burst', count: 48 });
+    } else {
+      sfx.horn();
+      celebrate(fresh('celebrate', CELEBRATIONS).item);
+    }
+    // Every receipt gets its own little tune: same receipt, same tune.
+    setTimeout(() => sfx.jingle(r.id), r.legendary ? 1500 : 1100);
+    if (view.drip || view.unlocked?.length) setTimeout(() => sfx.unlock(), 2100);
   }
   dismissLevelUp.t = setTimeout(dismissLevelUp, 1500);
 };
@@ -927,6 +1045,58 @@ VIEWS.method = () => {
   };
 };
 
+// ---------- spin a dare ----------
+
+function darePool() {
+  const d = days();
+  return [...DARES, ...PLAYBOOKS.filter((p) => packOpen(p.id, d)).flatMap((p) => p.moves)];
+}
+
+VIEWS.spin = () => {
+  const landed = view.phase === 'landed';
+  return {
+    tone: view.tone,
+    html: step({
+      title: landed ? 'THE WHEEL|HAS SPOKEN.' : 'SPINNING…',
+      max: 110,
+      top: '<div style="flex:1"></div>',
+      center: true,
+      slam: landed,
+      body: `<div class="reel ${landed ? 'landed' : ''}"><p id="reel" aria-live="polite">${esc(landed ? view.pick : view.pool[0])}</p></div>
+        ${landed ? '<p class="sub center-text">The wheel doesn’t do take-backs. Well. One.</p>' : ''}`,
+      foot: landed ? '<button class="btn mega" data-a="dare-go">DO IT</button><button class="btn ghost" data-a="spin">SPIN AGAIN</button>' : '',
+    }),
+  };
+};
+VIEWS.spin.after = () => {
+  if (view.phase !== 'spinning') return;
+  const reel = document.getElementById('reel');
+  const { pool } = view;
+  let i = 0;
+  let delay = 45;
+  const land = () => {
+    view.phase = 'landed';
+    render();
+    sfx.boom();
+    buzz(40);
+    shake();
+  };
+  if (calm()) {
+    land();
+    return;
+  }
+  const spinStep = () => {
+    if (view.name !== 'spin') return;
+    i += 1;
+    if (reel) reel.textContent = pool[i % pool.length];
+    sfx.tick(1 + (i % 5) * 0.08);
+    delay *= 1.15;
+    if (delay < 380) VIEWS.spin.t = setTimeout(spinStep, delay);
+    else land();
+  };
+  VIEWS.spin.t = setTimeout(spinStep, delay);
+};
+
 // ---------- the vault ----------
 
 VIEWS.vault = () => {
@@ -945,6 +1115,9 @@ VIEWS.vault = () => {
   const koansHave = KOANS.filter((k) => hasFound('koans', k)).length;
   const raresHave = RARE_LINES.filter((k) => hasFound('rares', k)).length;
   const heardHave = OBJECTIONS.filter((o) => hasFound('heard', o.q)).length;
+  const closet = WARDROBE_INFO.map((p) => (S.closet.includes(p.id)
+    ? `<button class="closet-item ${S.wear === p.id ? 'on' : ''}" data-a="wear" data-id="${p.id}" aria-pressed="${S.wear === p.id}">${brainSVG(30, 'tiny', p.id)}<span>${esc(p.name)}</span></button>`
+    : `<div class="closet-item locked">${brainSVG(30, 'tiny ghost', null)}<span>???</span></div>`)).join('');
   return {
     html: tabs('vault', `${big('THE|VAULT', { max: 120 })}
       <div class="stats">
@@ -953,6 +1126,11 @@ VIEWS.vault = () => {
       </div>
       ${next ? `<p class="vault-next">Next: ${esc(next.kind === 'lessons' ? 'a new law of the Method' : 'a new mission pack')}. Bails count. Showing up is the whole trick.</p>` : ''}
       <div class="shelves">
+        <details class="shelf" open>
+          <summary><b>CLOSET</b><span>${S.closet.length} / ${WARDROBE_INFO.length}</span></summary>
+          <p class="shelf-note">Drip drops as you finish things. Tap to wear it, tap again to take it off.</p>
+          <div class="closet">${closet}</div>
+        </details>
         ${shelf('KOANS', koansHave, KOANS.length, 'One a day, on the ticker up top. Everybody gets the same one.', list(KOANS, 'koans'))}
         ${shelf('LEGENDARY', raresHave, RARE_LINES.length, 'About one receipt in twenty comes out gold.', list(RARE_LINES, 'rares'))}
         ${shelf('BUT WHAT IF…', heardHave, OBJECTIONS.length, 'Every whine, answered. Tap BUT WHAT IF on the home screen.', list(OBJECTIONS.map((o) => o.q), 'heard', true))}
@@ -1128,11 +1306,17 @@ VIEWS.about = () => {
         <h2>Keep your progress</h2>
         <p>Your brain, streak and receipts live only in this browser. A backup code carries them to a new phone, or back after the browser clears its data.</p>
         <button class="btn ghost" data-a="backup">BACKUP CODE</button>
+        ${canNudge() ? `<h2>Daily nudge</h2>
+        <p>One a day. If you’ve already done something that day, it skips it.</p>
+        <div class="chips">${[[null, 'OFF'], [9, '9 AM'], [12, 'NOON'], [18, '6 PM'], [20, '8 PM']].map(([h, label]) => `<button class="chip ${(S.nudge?.h ?? null) === h ? 'on' : ''}" data-a="nudge" data-h="${h ?? ''}">${label}</button>`).join('')}</div>` : ''}
+        <h2>Sound</h2>
+        <p>No sound on an iPhone? Check the silent switch on the side. The app follows it.</p>
         <h2>Start over</h2>
         <button class="btn ghost" data-a="replay-intro" style="margin-top:12px">WATCH THE INTRO</button>
         <button class="btn ghost" data-a="rescan">SCAN MY BRAIN AGAIN</button>
         ${install}
         <button class="btn ghost" data-a="erase" id="erase">ERASE EVERYTHING</button>
+        <a class="link" href="${framed ? 'https://corpslore.github.io/r-maxxing/privacy.html' : 'privacy.html'}" target="_blank" rel="noopener">Privacy policy</a>
       </div>`,
     }),
   };
@@ -1158,6 +1342,14 @@ VIEWS.backup = () => {
     }),
   };
 };
+
+// ---------- nudges ----------
+
+function refreshNudges() {
+  if (!canNudge() || !S.nudge) return Promise.resolve(false);
+  const times = C.nudgeTimes({ hour: S.nudge.h, doneToday: S.lastDay === C.dateKey() });
+  return scheduleNudges(times, C.shuffled(NUDGE_LINES));
+}
 
 // ---------- sharing ----------
 
@@ -1243,7 +1435,7 @@ function startDraftClock(copied) {
   L.move = 'Send it.';
   L.startedAt = Date.now();
   buzz(30);
-  sfx.boom();
+  sfx.windup();
   loopTo('timer');
   toast(copied ? 'Copied. Go send it.' : 'Copy it from below, then send it.');
 }
@@ -1276,7 +1468,7 @@ const ACTIONS = {
   mute: (_, el) => {
     const off = sfx.toggleMute();
     el.classList.toggle('is-off', off);
-    toast(off ? 'SOUND OFF' : 'SOUND ON');
+    toast(off ? 'SOUND OFF' : 'SOUND ON. Nothing? Check the silent switch.');
   },
   start: () => startLoop({}),
   'start-door': () => startLoop({ full: true }),
@@ -1454,7 +1646,7 @@ const ACTIONS = {
     if (C.detectCrisis(L.move)) return go('crisis');
     L.startedAt = Date.now();
     buzz(30);
-    sfx.boom();
+    sfx.windup();
     return loopTo('timer');
   },
 
@@ -1509,7 +1701,7 @@ const ACTIONS = {
     S.active.startedAt = Date.now();
     save();
     buzz(30);
-    sfx.boom();
+    sfx.windup();
     go('loop');
   },
   'timer-done': () => {
@@ -1571,6 +1763,55 @@ const ACTIONS = {
   },
   pack: (d) => (packOpen(d.id) ? go('pack', { id: d.id }) : undefined),
   'pack-move': (d) => prefilled(d.v, 'playbook'),
+  poke: (_, el) => {
+    const svg = el.querySelector('svg.brain');
+    const move = fresh('poke-move', ['boing', 'spin', 'squash', 'jump', 'nope']).item;
+    if (svg && !calm()) {
+      svg.classList.remove('boing', 'spin', 'squash', 'jump', 'nope', 'wobble');
+      void svg.getBoundingClientRect();
+      svg.classList.add(move);
+      clearTimeout(ACTIONS.poke.w);
+      ACTIONS.poke.w = setTimeout(() => { svg.classList.remove(move); svg.classList.add('wobble'); }, 900);
+    }
+    const bubble = el.querySelector('.bubble');
+    if (bubble) {
+      bubble.textContent = fresh('poke', POKE_LINES).item;
+      bubble.classList.remove('on');
+      void bubble.offsetWidth;
+      bubble.classList.add('on');
+      clearTimeout(ACTIONS.poke.t);
+      ACTIONS.poke.t = setTimeout(() => bubble.classList.remove('on'), 1900);
+    }
+    sfx.squish();
+    buzz(12);
+  },
+  wear: (d) => {
+    S.wear = S.wear === d.id ? null : d.id;
+    setWorn(S.wear);
+    save();
+    sfx.swish();
+    buzz(30);
+    render();
+  },
+  spin: () => {
+    const pool = darePool();
+    const pick = fresh('dare', pool).item;
+    clearTimeout(VIEWS.spin.t);
+    go('spin', { phase: 'spinning', pick, pool: C.shuffled(pool), tone: fresh('theme', THEMES).item });
+  },
+  'dare-go': () => prefilled(view.pick, 'dare'),
+  nudge: async (d) => {
+    const h = d.h === '' ? null : Number(d.h);
+    S.nudge = h == null ? null : { h };
+    save();
+    const ok = h == null ? await clearNudges() : await refreshNudges();
+    if (h != null && !ok) {
+      S.nudge = null;
+      save();
+      toast('Notifications are off for R-MAXXING. Turn them on in Settings.');
+    } else toast(h == null ? 'Nudges off.' : 'Set. One a day, no guilt.');
+    render();
+  },
   locked: (d) => toast(`Opens after ${dayWord(Number(d.need) - days())} of doing stuff. Bails count.`),
 
   'install-go': async () => {
@@ -1623,6 +1864,7 @@ const ACTIONS = {
     }
     S = hydrate(data);
     S.active = null;
+    ensureCloset();
     save();
     toast('Restored. Welcome back.');
     return go(S.w == null ? 'intro' : 'home', S.w == null ? { i: 0 } : {});
@@ -1678,12 +1920,13 @@ const ACTIONS = {
       localStorage.removeItem(KEY);
     } catch { /* Nothing to remove. */ }
     S = blank();
+    ensureCloset();
     go('intro', { i: 0 });
   },
 };
 
 // Silent actions: anything that makes its own noise, plus the crisis screen.
-const QUIET = new Set(['timer-go', 'fast-go', 'draft-go', 'draft-open', 'dump-done', 'moonwalk', 'objection', 'objection-next', 'thing-next', 'to-door', 'crisis-back', 'mute', 'intro-tap', 'intro-skip', 'replay-intro']);
+const QUIET = new Set(['poke', 'wear', 'spin', 'timer-go', 'fast-go', 'draft-go', 'draft-open', 'dump-done', 'moonwalk', 'objection', 'objection-next', 'thing-next', 'to-door', 'crisis-back', 'mute', 'intro-tap', 'intro-skip', 'replay-intro']);
 
 // ---------- events ----------
 
@@ -1764,6 +2007,7 @@ function boot() {
     setTimeout(() => toast(`You missed yesterday. Do one thing today and the ${S.streak}-day streak stays.`), 600);
   }
   S.lastSeen = today;
+  refreshNudges();
 
   // A running timer survives a refresh or a locked phone. Stale drafts don't.
   if (S.active && Date.now() - S.active.createdAt > 12 * 3600 * 1000) S.active = null;

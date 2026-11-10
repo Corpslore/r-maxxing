@@ -269,10 +269,123 @@ export const CONTEXT_LINES = {
   monday: { lines: ['Did a thing on a Monday. Monday hates that.', 'Monday, handled. The rest of the week is scared now.'] },
   friday: { lines: ['Friday, and you still did it. Unhinged. Respect.', 'Did a thing on a Friday. The weekend is earned.'] },
   weekend: { lines: ['Did a thing on the weekend. Nobody even made you.', 'Weekend thing, done. Back to lying down.'] },
+  dare: { always: true, lines: ['The wheel said do it. You did it. Respect the wheel.', 'Dare accepted. Dare completed. The wheel is pleased.', 'You let a wheel run your life for five minutes. It worked.'] },
 };
 
 // How often an everyday moment line beats a generic one. Low, so small pools don't wear out.
 export const MOMENT_ODDS = 0.35;
+
+// ---------- the wardrobe ----------
+// Drawn in brain.js. Pieces drop as you finish things, in an order shuffled per person,
+// and they're never announced ahead of time: the surprise is the point.
+export const WARDROBE_INFO = [
+  { id: 'partyhat', name: 'PARTY HAT', line: 'For no reason. That’s the best reason.' },
+  { id: 'helmet', name: 'RACING HELMET', line: 'For the waterslide. You know the one.' },
+  { id: 'crown', name: 'CROWN', line: 'King of doing it before thinking about it.' },
+  { id: 'propeller', name: 'PROPELLER CAP', line: 'Spins faster than your thoughts now.' },
+  { id: 'sweatband', name: 'SWEATBAND', line: 'You’re not sweating. The brain is.' },
+  { id: 'chefhat', name: 'CHEF HAT', line: 'Cooking. Not thinking. Cooking.' },
+  { id: 'headphones', name: 'HEADPHONES', line: 'Can’t hear the overthinking. Too loud in here.' },
+  { id: 'cowboy', name: 'COWBOY HAT', line: 'Yeehaw is a complete thought.' },
+  { id: 'bow', name: 'BOW', line: 'Gift-wrapped. Present tense.' },
+  { id: 'cone', name: 'TRAFFIC CONE', line: 'Found it. Wearing it. No further questions.' },
+  { id: 'mustache', name: 'MUSTACHE', line: 'Distinguished. Has never once reconsidered.' },
+  { id: 'halo', name: 'HALO', line: 'A smooth brain is a holy brain.' },
+];
+
+// Finished things (bails don't count here) at which a new piece drops.
+export const DRIP_AT = [1, 3, 5, 8, 11, 15, 19, 24, 29, 35, 42, 50];
+
+// Tap the brain on the home screen.
+export const POKE_LINES = [
+  'Brother.',
+  'Not a thought in here. Check.',
+  'Ow. Go do the thing.',
+  'I’m busy doing nothing.',
+  'Poke me again. I dare you.',
+  'Soup.',
+  'You’re stalling. I can tell.',
+  'Hi. Bye. Go.',
+  'I had a thought once. Didn’t like it.',
+  'That tickles. Do something.',
+  'Echo… echo… echo…',
+  'Fully loaded. Nothing in it.',
+  'Still Thursday in here.',
+  'Do I look smoother to you?',
+  'Rent-free. Nobody else lives here.',
+  'Beep. Boop. Go outside.',
+  'I’m not a stress ball. Well. Okay.',
+  'The raccoon says hi.',
+  'You poked me. That’s an action. Proud of you.',
+  'Thinking about thinking about it? No.',
+];
+
+// Spin a dare: small, safe and silly. Mixed with the open mission packs.
+export const DARES = [
+  'Say “brother” out loud to nobody.',
+  'Text someone “thinking of you” with no context.',
+  'Reply to the oldest unread message you have.',
+  'Do five squats right now.',
+  'Make your bed. Badly.',
+  'Take the stairs once today.',
+  'Put one thing back where it goes.',
+  'Send a voice memo instead of a text.',
+  'Stand outside for 60 seconds. That’s it.',
+  'Delete one app you never open.',
+  'Ask someone how their day actually was.',
+  'Wipe your phone screen. You know why.',
+  'Throw away one thing from your bag.',
+  'Drink a glass of water like it’s a toast.',
+  'Write tomorrow’s first task on a sticky note.',
+  'High-five a doorframe on your way out.',
+  'Open the app you’ve been avoiding. Just open it.',
+  'Unsubscribe from one email list.',
+  'Compliment the next dog you see. Out loud.',
+  'Water a plant. Any plant. Yours.',
+];
+
+// Shown while the clock runs, one at a time.
+export const TIMER_LINES = [
+  'Thoughts: zero. Keep it there.',
+  'You’re doing it. That’s the whole thing.',
+  'Nobody is watching. Keep going.',
+  'The brain is buffering. Good.',
+  'This is the part where you don’t stop.',
+  'Overthinking has left the building.',
+  'Still going. Look at you.',
+  'Hands busy. Head empty.',
+  'If it’s ugly, it counts.',
+  'Somewhere a dog is rooting for you.',
+  'Done beats good. Keep it moving.',
+  'The committee is on break.',
+  'Don’t check. Just keep doing.',
+  'The raccoon is in the cart. The cart is moving.',
+  'You can decide later. You’re busy.',
+  'Small step. Then the next one.',
+  'Zero thoughts. Full send.',
+  'This is what Thursday is for.',
+  'You don’t need a plan. You need a minute.',
+  'Brother. You’re doing it.',
+];
+
+// Daily nudges in the iPhone app. No guilt, no owl threats.
+export const NUDGE_LINES = [
+  'One tiny thing. Then you’re free.',
+  'Today’s mission is small. Like, really small.',
+  'Your brain is getting wrinkly. One move smooths it.',
+  'The thing you’re avoiding takes nine seconds.',
+  'Not a thought. Just one move.',
+  'Brother. One thing.',
+  'Spin a dare. Let the wheel decide.',
+  'The raccoon is waiting in the cart.',
+  'Something new might drop today. Go find out.',
+  'Five minutes. Then you can go back to nothing.',
+  'Ugly and done beats perfect and later.',
+  'Today’s koan is up. So are you, probably.',
+];
+
+// Each round of the fast lane gets its own color, so no two rounds look alike.
+export const THEMES = ['sun', 'pink', 'blue', 'lime', 'orange'];
 
 // Rare: about 1 receipt in 20 comes out gold with one of these. Collected in the Vault.
 export const RARE_LINES = [

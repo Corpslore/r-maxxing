@@ -1,8 +1,9 @@
 // Offline support. Bump VERSION whenever a cached file changes.
-const VERSION = 'rmaxxing-v5';
+const VERSION = 'rmaxxing-v6';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest',
-  'src/app.js', 'src/core.js', 'src/content.js', 'src/brain.js', 'src/cards.js', 'src/intro.js', 'src/sfx.js', 'src/styles.css',
+  'privacy.html',
+  'src/app.js', 'src/core.js', 'src/content.js', 'src/brain.js', 'src/cards.js', 'src/intro.js', 'src/sfx.js', 'src/native.js', 'src/styles.css',
   'assets/fonts/anton.woff2', 'assets/fonts/bricolage.woff2', 'assets/fonts/dm-mono-500.woff2',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/icon-maskable-512.png', 'assets/icons/apple-touch-icon.png',
 ];

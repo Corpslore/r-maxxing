@@ -48,6 +48,108 @@ const FACES = {
   bowling: { eyes: 'shades', strokes: ['M146 146C152 160 176 160 182 146'] },
 };
 
+// ---------- the wardrobe ----------
+// Each piece is a list of shapes in the brain's own coordinates, drawn on top of everything.
+// Hats ride down as the lobes shrink, so they stay on the head; `face` pieces don't move.
+const K = '#0B0B0B';
+const circle = (x, y, r) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0`;
+export const WARDROBE = {
+  partyhat: [
+    { d: 'M136 32L190 28L166 -44Z', fill: '#3BD1FF', stroke: K, w: 4 },
+    { d: 'M150 0L178 -2', stroke: '#FFE500', w: 6 },
+    { d: 'M144 16L184 13', stroke: '#FFE500', w: 6 },
+    { d: circle(166, -46, 10), fill: '#FF3D8B', stroke: K, w: 4 },
+  ],
+  crown: [
+    { d: 'M122 32L128 -8L146 12L162 -16L178 12L196 -8L202 32Z', fill: '#FFD400', stroke: K, w: 4 },
+    { d: circle(162, 16, 5), fill: '#FF3D8B' },
+    { d: circle(137, 21, 4), fill: '#3BD1FF' },
+    { d: circle(187, 21, 4), fill: '#3BD1FF' },
+  ],
+  helmet: [
+    { d: 'M92 52C92 -6 232 -10 236 52Z', fill: '#FF3B30', stroke: K, w: 5 },
+    { d: 'M163 -4V50', stroke: '#FFFFFF', w: 12 },
+    { d: 'M96 52H232', stroke: K, w: 8 },
+  ],
+  propeller: [
+    { d: 'M120 34C120 -4 206 -4 206 34Z', fill: '#2B6BFF', stroke: K, w: 4 },
+    { d: 'M112 34H214', stroke: K, w: 7 },
+    { d: 'M163 0V-22', stroke: K, w: 6 },
+    { d: 'M108 -26C132 -46 152 -32 163 -24C174 -32 194 -46 218 -26C194 -10 174 -16 163 -24C152 -16 132 -10 108 -26Z', fill: '#FFE500', stroke: K, w: 4, cls: 'b-prop' },
+    { d: circle(163, -24, 6), fill: '#FF3D8B', stroke: K, w: 3 },
+  ],
+  halo: [
+    { d: 'M118 -14a45 12 0 1 0 90 0a45 12 0 1 0 -90 0', stroke: '#FFE500', w: 8, cls: 'b-halo' },
+  ],
+  chefhat: [
+    { d: circle(140, 2, 18), fill: '#FFFFFF', stroke: K, w: 4 },
+    { d: circle(186, 2, 18), fill: '#FFFFFF', stroke: K, w: 4 },
+    { d: circle(163, -10, 22), fill: '#FFFFFF', stroke: K, w: 4 },
+    { d: 'M130 32V10H196V32Z', fill: '#FFFFFF', stroke: K, w: 4 },
+  ],
+  sweatband: [
+    { d: 'M66 100C78 44 246 40 260 100', stroke: '#FF3D8B', w: 16 },
+    { d: 'M66 100C78 44 246 40 260 100', stroke: '#FFFFFF', w: 4 },
+  ],
+  cowboy: [
+    { d: 'M124 34C120 -8 140 -16 163 -6C186 -16 206 -8 202 34Z', fill: '#A0682F', stroke: '#3A2410', w: 4 },
+    { d: 'M125 20H201', stroke: '#3A2410', w: 7 },
+    { d: 'M84 30C116 50 210 50 242 28C238 44 204 56 163 56C122 56 88 46 84 30Z', fill: '#8B5A2B', stroke: '#3A2410', w: 4 },
+  ],
+  cone: [
+    { d: 'M142 32L184 32L170 -40H156Z', fill: '#FF7A00', stroke: K, w: 4 },
+    { d: 'M150 6H176', stroke: '#FFFFFF', w: 8 },
+    { d: 'M147 20H179', stroke: '#FFFFFF', w: 6 },
+    { d: 'M126 34H200', stroke: '#FF7A00', w: 10 },
+  ],
+  headphones: [
+    { d: 'M86 100C80 4 246 4 240 100', stroke: K, w: 10 },
+    { d: 'M64 88h26a6 6 0 0 1 6 6v42a6 6 0 0 1 -6 6h-26a6 6 0 0 1 -6 -6v-42a6 6 0 0 1 6 -6z', fill: '#FF3D8B', stroke: K, w: 4 },
+    { d: 'M236 88h26a6 6 0 0 1 6 6v42a6 6 0 0 1 -6 6h-26a6 6 0 0 1 -6 -6v-42a6 6 0 0 1 6 -6z', fill: '#FF3D8B', stroke: K, w: 4 },
+  ],
+  bow: [
+    { d: 'M200 24C160 -22 140 62 200 38Z', fill: '#FF3D8B', stroke: K, w: 5 },
+    { d: 'M200 24C240 -22 260 62 200 38Z', fill: '#FF3D8B', stroke: K, w: 5 },
+    { d: circle(200, 31, 10), fill: '#C2185B', stroke: K, w: 4 },
+  ],
+  mustache: [
+    { d: 'M163 136C150 124 128 126 124 144C138 136 150 142 163 141C176 142 188 136 202 144C198 126 176 124 163 136Z', fill: '#3A2410', stroke: K, w: 3, face: true },
+  ],
+};
+
+let worn = null;
+export const setWorn = (id) => { worn = WARDROBE[id] ? id : null; };
+export const getWorn = () => worn;
+
+const hatShift = (lobe) => Math.round((1 - lobe) * 18);
+
+function wardrobeMarkup(id, lobe) {
+  const parts = WARDROBE[id];
+  if (!parts) return '';
+  const shapes = (face) => parts.filter((p) => !!p.face === face).map((p) => `<path class="${p.cls || ''}" d="${p.d}" style="fill:${p.fill || 'none'};stroke:${p.stroke || 'none'};stroke-width:${p.w || 0};stroke-linejoin:round;stroke-linecap:round"/>`).join('');
+  return `<g class="b-acc" data-id="${id}"><g class="b-hat" transform="translate(0 ${hatShift(lobe)})">${shapes(false)}</g>${shapes(true)}</g>`;
+}
+
+function drawWardrobe(ctx, id, lobe) {
+  const parts = WARDROBE[id];
+  if (!parts) return;
+  parts.forEach((p) => {
+    ctx.save();
+    if (!p.face) ctx.translate(0, hatShift(lobe));
+    const path = new Path2D(p.d);
+    if (p.fill) {
+      ctx.fillStyle = p.fill;
+      ctx.fill(path);
+    }
+    if (p.stroke) {
+      ctx.strokeStyle = p.stroke;
+      ctx.lineWidth = p.w || 1;
+      ctx.stroke(path);
+    }
+    ctx.restore();
+  });
+}
+
 export function moodFor(w) {
   if (w >= 65) return 'walnut';
   if (w >= 40) return 'committee';
@@ -77,7 +179,7 @@ function faceMarkup(mood) {
   return `${dots}${shades}<g class="b-lines">${lines}</g>${drop}`;
 }
 
-export function brainSVG(w, cls = '') {
+export function brainSVG(w, cls = '', wear = worn) {
   const s = spec(w);
   const lobes = LOBES.map(([x, y, r]) => `<circle class="b-lobe" cx="${x}" cy="${y}" r="${r}" style="transform:scale(${s.lobe})"/>`).join('');
   const folds = WRINKLES.map((d, i) => `<path class="b-fold ${i < s.folds ? '' : 'off'}" d="${d}" pathLength="1" stroke-dashoffset="${i < s.folds ? 0 : 1}"/>`).join('');
@@ -89,6 +191,7 @@ export function brainSVG(w, cls = '') {
     <g class="b-folds">${folds}</g>
     <ellipse class="b-shine" cx="112" cy="72" rx="28" ry="13" transform="rotate(-28 112 72)" style="opacity:${s.shine * 0.65}"/>
     <g class="b-face">${faceMarkup(s.mood)}</g>
+    ${wear ? wardrobeMarkup(wear, s.lobe) : ''}
   </svg>`;
 }
 
@@ -103,11 +206,12 @@ export function updateBrain(svg, w) {
   svg.querySelector('.b-shine').style.opacity = s.shine * 0.65;
   svg.querySelector('.b-stripes').style.opacity = s.stripes ? 1 : 0;
   svg.querySelector('.b-face').innerHTML = faceMarkup(s.mood);
+  svg.querySelector('.b-hat')?.setAttribute('transform', `translate(0 ${hatShift(s.lobe)})`);
   svg.setAttribute('aria-label', `A brain, ${Math.round(w)} percent wrinkled`);
 }
 
 // Draws into a box whose left edge is x and top is y, `width` wide.
-export function drawBrain(ctx, x, y, width, w) {
+export function drawBrain(ctx, x, y, width, w, wear = worn) {
   const s = spec(w);
   const k = width / 270;
   ctx.save();
@@ -166,5 +270,6 @@ export function drawBrain(ctx, x, y, width, w) {
     ctx.fillStyle = BRAIN_COLORS.drop;
     ctx.fill(new Path2D(f.drop));
   }
+  if (wear) drawWardrobe(ctx, wear, s.lobe);
   ctx.restore();
 }

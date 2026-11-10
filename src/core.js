@@ -93,6 +93,7 @@ export function closeContext({ firstEver, streak, streakUp, gapDays, source, don
   if (firstEver) return 'first';
   if (streakUp && [3, 7, 14, 30].includes(streak)) return `streak${streak}`;
   if (gapDays != null && gapDays >= 3) return 'back';
+  if (source === 'dare') return 'dare';
   if (source === 'daily') return 'daily';
   if (doneSec != null && doneSec < 60) return 'quick';
   const h = date.getHours();
@@ -107,6 +108,38 @@ export function closeContext({ firstEver, streak, streakUp, gapDays, source, don
 
 // About one finished thing in twenty comes out gold.
 export const LEGENDARY_ODDS = 0.05;
+
+// ---------- wardrobe drops ----------
+
+// A per-person order for the wardrobe, so friends don't all get the same hat first.
+export function shuffled(list, rand = Math.random) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Which piece drops now, if any: one per threshold reached, next in the person's order.
+export function dripDue(finished, owned, order, schedule) {
+  const earned = schedule.filter((n) => n <= finished).length;
+  if (owned.length >= earned) return null;
+  return order.find((id) => !owned.includes(id)) || null;
+}
+
+// ---------- daily nudges ----------
+
+// The next `days` nudge times at hour:minute. Today is skipped if it's done or already past.
+export function nudgeTimes({ hour, minute = 0, now = new Date(), doneToday = false, days = 7 }) {
+  const out = [];
+  for (let i = 0; out.length < days && i < days + 1; i++) {
+    const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, hour, minute, 0, 0);
+    if (i === 0 && (doneToday || at <= now)) continue;
+    out.push(at);
+  }
+  return out;
+}
 
 // ---------- backup codes ----------
 
