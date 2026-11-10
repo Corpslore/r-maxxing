@@ -7,6 +7,9 @@ export const BRAND = {
   tagline: 'Not a thought.',
 };
 
+// Where the web version lives. Shared from inside the iPhone app, where the page has no public address.
+export const PUBLIC_URL = 'https://corpslore.github.io/r-maxxing/';
+
 export const CLOSER = 'At the end of the day, it’s the end of the day.';
 
 // The opener: tap-through cards like Stories, one idea each. `ms` is how long a card holds
@@ -296,6 +299,49 @@ export const WARDROBE_INFO = [
   { id: 'cone', name: 'TRAFFIC CONE', line: 'Found it. Wearing it. No further questions.' },
   { id: 'mustache', name: 'MUSTACHE', line: 'Distinguished. Has never once reconsidered.' },
   { id: 'halo', name: 'HALO', line: 'A smooth brain is a holy brain.' },
+];
+
+// ---------- Pro ----------
+// One-time purchase, never a subscription. It adds things; nothing free is taken away,
+// and nothing about safety (the door check, crisis routing) is ever behind it.
+// Prices come from the App Store at runtime and are set in App Store Connect, never here.
+export const PRODUCTS = {
+  pro: {
+    id: 'rmaxxing.pro',
+    name: 'R-MAXXING PRO',
+    perks: ['6 bonus pieces of drip, yours right away', '4 receipt skins for everything you share', 'One payment. Not a subscription. Ever.'],
+  },
+  tips: [
+    { id: 'rmaxxing.tip.oj', name: 'Buy the brain an orange juice' },
+    { id: 'rmaxxing.tip.sandwich', name: 'Buy the brain a sandwich' },
+    { id: 'rmaxxing.tip.cart', name: 'Buy the raccoon a new cart' },
+  ],
+};
+
+export const PRO_WARDROBE_INFO = [
+  { id: 'wizard', name: 'WIZARD HAT', line: 'Casts one spell: Just Do It.' },
+  { id: 'viking', name: 'VIKING HELMET', line: 'Raided the to-do list. Took everything.' },
+  { id: 'tophat', name: 'TOP HAT', line: 'A gentleman of zero thoughts.' },
+  { id: 'tiara', name: 'TIARA', line: 'Royalty doesn’t overthink. Royalty waves.' },
+  { id: 'pirate', name: 'PIRATE HAT', line: 'Sails first. Charts later.' },
+  { id: 'beanie', name: 'BEANIE', line: 'Cozy. Smooth. Unbothered.' },
+];
+
+// Receipt colors, in the app and on share cards. Classic is free; the rest come with Pro.
+// The gold legendary receipt always wins over a skin.
+export const RECEIPT_SKINS = [
+  { id: 'classic', name: 'CLASSIC', paper: '#FFFDF5', ink: '#0B0B0B', mute: '#67624F' },
+  { id: 'neon', name: 'NEON', paper: '#0B0B0B', ink: '#7CFF4F', mute: '#4FB833', pro: true },
+  { id: 'bubblegum', name: 'BUBBLEGUM', paper: '#FF8FB4', ink: '#0B0B0B', mute: '#6B1F3D', pro: true },
+  { id: 'blueprint', name: 'BLUEPRINT', paper: '#1E2BFF', ink: '#FFF8E7', mute: '#CDD1FF', pro: true },
+  { id: 'kraft', name: 'KRAFT', paper: '#C9A574', ink: '#2B1D0E', mute: '#5C4325', pro: true },
+];
+
+export const TIP_THANKS = [
+  'The brain drank it in one go. Thank you.',
+  'Tip received. The brain is smoother just knowing.',
+  'You paid for a raccoon’s cart. That’s legendary behavior.',
+  'Thank you. That money is going straight to not thinking.',
 ];
 
 // Finished things (bails don't count here) at which a new piece drops.

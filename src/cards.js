@@ -1,14 +1,15 @@
 // Share images, drawn on canvas. 1080x1920 fits Stories, Reels and TikTok.
 
 import { drawBrain } from './brain.js';
-import { BRAND, CLOSER, DREAD } from './content.js';
+import { BRAND, CLOSER, DREAD, PUBLIC_URL } from './content.js';
 import { fmtDid, fmtDuration, fmtRatio, intOf, ratio, thoughtsPerMinute } from './core.js';
 
 const SUN = '#FFE500';
-const INK = '#0B0B0B';
-const WHITE = '#FFFDF5';
+// Receipt skins swap these three for one card, then put them back (see receiptFrame).
+let INK = '#0B0B0B';
+let WHITE = '#FFFDF5';
 const PINK = '#FF3D8B';
-const MUTE = '#67624F';
+let MUTE = '#67624F';
 const DISPLAY = '"Anton", Impact, sans-serif';
 const BODY = '"Bricolage Grotesque", system-ui, sans-serif';
 const MONO = '"DM Mono", ui-monospace, monospace';
@@ -99,6 +100,8 @@ const footerHost = () => {
   } catch {
     return '';
   }
+  // The iPhone app runs from capacitor://localhost, so cards point at the website.
+  if (window.RMX_NATIVE?.isNative) return PUBLIC_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
   if (/^(localhost|127\.|\[::1\])/.test(location.host)) return '';
   // Host plus folder, so a card from a project page (user.github.io/app) still leads back to the app.
   return (location.host + location.pathname.replace(/index\.html$/, '')).replace(/\/$/, '');
@@ -221,8 +224,19 @@ function barcode(ctx, x, y, w, h) {
 }
 
 // gold: the legendary receipt. Black card, gold paper, a banner on top.
-function receiptFrame(sub, rows, bigText, bigLabel, { gold = false } = {}) {
-  const [c, ctx] = canvas(1080, 1920, gold ? INK : SUN);
+// skin: { paper, ink, mute } for a receipt skin. Gold wins over any skin.
+function receiptFrame(sub, rows, bigText, bigLabel, { gold = false, skin = null } = {}) {
+  const saved = [INK, WHITE, MUTE];
+  if (skin && !gold) [INK, WHITE, MUTE] = [skin.ink, skin.paper, skin.mute];
+  try {
+    return drawReceipt(sub, rows, bigText, bigLabel, gold);
+  } finally {
+    [INK, WHITE, MUTE] = saved;
+  }
+}
+
+function drawReceipt(sub, rows, bigText, bigLabel, gold) {
+  const [c, ctx] = canvas(1080, 1920, gold ? '#0B0B0B' : SUN);
   const left = 170;
   const right = 910;
   const maxW = right - left;
@@ -301,7 +315,7 @@ function receiptFrame(sub, rows, bigText, bigLabel, { gold = false } = {}) {
 
 const stamp = (ms) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
 
-export function renderReceiptCard(r, showThing) {
+export function renderReceiptCard(r, showThing, skin = null) {
   const rows = [];
   if (showThing && r.thing) rows.push(['THE THING', r.thing, { block: true }]);
   else rows.push(['THE THING', '', { redacted: true }]);
@@ -314,7 +328,7 @@ export function renderReceiptCard(r, showThing) {
   const x = bailed ? null : ratio(r.thoughtMin, r.doneSec);
   const big = bailed ? 'CHICKENED OUT' : x ? fmtRatio(x) : 'DONE';
   const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? 'THINKING TO DOING' : 'THAT’S THE WHOLE THING';
-  return receiptFrame(`RECEIPT #${r.day}   ${stamp(r.at)}`, rows, big, label, { gold: !!r.legendary });
+  return receiptFrame(`RECEIPT #${r.day}   ${stamp(r.at)}`, rows, big, label, { gold: !!r.legendary, skin });
 }
 
 export function renderLifetimeCard(stats, wrinkled, wis, at = Date.now()) {

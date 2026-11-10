@@ -4,10 +4,12 @@ import {
   BAIL_LINES, BRAND, CHECK_QS, CLOSER, CONTEXT_LINES, DEFAULT_THINK_MOVE, DONE_LINES, DOOR, DREAD, HOME_CTA, INTRO, INTRO_CARDS,
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
-  DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, THEMES, TIMER_LINES, WARDROBE_INFO,
+  DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS,
 } from './content.js';
+import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, setWorn, updateBrain } from './brain.js';
-import { canNudge, clearNudges, haptic, requestReview, scheduleNudges } from './native.js';
+import { canNudge, clearNudges, haptic, isNative, requestReview, scheduleNudges, shareImage, statusBar } from './native.js';
 import {
   fontsReady, renderLifetimeCard, renderObjectionCard, renderQuizCard, renderReceiptCard, toBlob,
 } from './cards.js';
@@ -19,7 +21,7 @@ const KEY = 'rmaxxing.v1';
 const DEFAULTS = {
   w: null, startW: null, typeName: null, quizSeconds: null, wis: C.START_WIS,
   streak: 0, lastDay: null, lastSeen: null, installLater: null,
-  wear: null, closetOrder: null, nudge: null,
+  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic',
   receipts: [], read: [], dailyDone: {}, active: null,
 };
 
@@ -49,8 +51,18 @@ function ensureCloset() {
   if (!Array.isArray(S.closetOrder) || S.closetOrder.length !== ids.length || ids.some((id) => !S.closetOrder.includes(id))) {
     S.closetOrder = C.shuffled(ids);
   }
-  if (S.wear && !S.closet.includes(S.wear)) S.wear = null;
+  if (S.wear && !ownsPiece(S.wear)) S.wear = null;
   setWorn(S.wear);
+}
+
+// Earned pieces live in the closet; Pro pieces come with Pro.
+function ownsPiece(id) {
+  return S.closet.includes(id) || (S.pro && PRO_WARDROBE_INFO.some((p) => p.id === id));
+}
+
+// The receipt skin in use: Pro skins fall back to classic without Pro.
+function skinOf() {
+  return RECEIPT_SKINS.find((k) => k.id === S.skin && (!k.pro || S.pro)) || RECEIPT_SKINS[0];
 }
 
 let S = load();
@@ -83,7 +95,8 @@ const root = document.getElementById('app');
 // Inside an embedded viewer (an artifact preview, an iframe) the address isn't one worth sharing,
 // and downloads, the share sheet and service workers are usually blocked.
 const framed = (() => { try { return window.self !== window.top; } catch { return true; } })();
-const shareUrl = () => (framed ? '' : location.origin + location.pathname);
+// Inside the iPhone app the page's own address is capacitor://localhost, so share the website instead.
+const shareUrl = () => (framed ? '' : isNative() ? PUBLIC_URL : location.origin + location.pathname);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dailyMove = (key) => MOVES[C.dailyIndex(key, MOVES.length)];
 const todayKoan = (key = C.dateKey()) => KOANS[C.dailyIndex(key, KOANS.length)];
@@ -244,6 +257,8 @@ function render() {
   sfx.setTier(S.w == null || S.w >= 65 ? 0 : S.w >= 40 ? 1 : S.w >= 15 ? 2 : 3);
   const { tone = '', html } = fn();
   document.documentElement.dataset.tone = tone;
+  // The tab screens start with the yellow ticker; the bright tones need dark status-bar text too.
+  statusBar(['home', 'method', 'receipts', 'vault'].includes(view.name) || ['sun', 'pink', 'lime', 'orange'].includes(tone));
   root.innerHTML = html;
   fitAll();
   fn.after?.();
@@ -348,7 +363,7 @@ function teaser() {
 
 // Safari can clear a site's saved data after a week away; Home Screen apps keep theirs.
 function installCard() {
-  if (framed || installed() || !S.receipts.length) return '';
+  if (framed || isNative() || installed() || !S.receipts.length) return '';
   if (S.installLater && Date.now() < S.installLater) return '';
   const help = view.installHelp
     ? '<p>On iPhone: tap the Share button, then <b>Add to Home Screen</b>. On Android: open the browser menu, then <b>Install app</b> or <b>Add to Home screen</b>.</p>'
@@ -853,7 +868,7 @@ function receiptHTML(r, showThing) {
   const x = bailed ? null : C.ratio(r.thoughtMin, r.doneSec);
   const bigText = bailed ? 'CHICKENED OUT' : x ? C.fmtRatio(x) : 'DONE';
   const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? 'THINKING TO DOING' : 'THAT’S THE WHOLE THING';
-  return `<div class="receipt-wrap"><div class="receipt ${r.legendary ? 'gold' : ''}">
+  return `<div class="receipt-wrap"><div class="receipt ${r.legendary ? 'gold' : `skin-${skinOf().id}`}">
     <p class="r-title">${wordmark()}</p>
     <p class="r-sub">RECEIPT #${r.day}${r.legendary ? ' ★ LEGENDARY' : ''}</p>
     <div class="r-rows"><dl>${rows.map(([k, v]) => `<div class="r-row"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></div>
@@ -1118,11 +1133,24 @@ VIEWS.vault = () => {
   const koansHave = KOANS.filter((k) => hasFound('koans', k)).length;
   const raresHave = RARE_LINES.filter((k) => hasFound('rares', k)).length;
   const heardHave = OBJECTIONS.filter((o) => hasFound('heard', o.q)).length;
+  const sells = storeAvailable() || S.pro;
+  const proCard = storeAvailable() && !S.pro
+    ? '<button class="pro-card" data-a="shop"><b>R-MAXXING PRO</b><span>6 bonus drip and 4 receipt skins. One payment, not a subscription.</span><i>SEE IT</i></button>'
+    : '';
+  const proCloset = sells ? `<p class="closet-label">PRO DRIP</p><div class="closet">${PRO_WARDROBE_INFO.map((p) => (S.pro
+    ? `<button class="closet-item ${S.wear === p.id ? 'on' : ''}" data-a="wear" data-id="${p.id}" aria-pressed="${S.wear === p.id}">${brainSVG(30, 'tiny', p.id)}<span>${esc(p.name)}</span></button>`
+    : `<button class="closet-item locked pro" data-a="shop">${brainSVG(30, 'tiny ghost', p.id)}<span>PRO</span></button>`)).join('')}</div>` : '';
+  const skins = sells ? `<details class="shelf">
+          <summary><b>RECEIPT SKINS</b><span>${S.pro ? RECEIPT_SKINS.length : 1} / ${RECEIPT_SKINS.length}</span></summary>
+          <p class="shelf-note">The color of every receipt you see and share. Gold receipts stay gold.</p>
+          <div class="skins">${RECEIPT_SKINS.map((k) => `<button class="skin-chip ${skinOf().id === k.id ? 'on' : ''}" data-a="skin" data-id="${k.id}" style="--paper:${k.paper};--ink:${k.ink}">${k.name}${k.pro && !S.pro ? '<small>PRO</small>' : ''}</button>`).join('')}</div>
+        </details>` : '';
   const closet = WARDROBE_INFO.map((p) => (S.closet.includes(p.id)
     ? `<button class="closet-item ${S.wear === p.id ? 'on' : ''}" data-a="wear" data-id="${p.id}" aria-pressed="${S.wear === p.id}">${brainSVG(30, 'tiny', p.id)}<span>${esc(p.name)}</span></button>`
     : `<div class="closet-item locked">${brainSVG(30, 'tiny ghost', null)}<span>???</span></div>`)).join('');
   return {
     html: tabs('vault', `${big('THE|VAULT', { max: 120 })}
+      ${proCard}
       <div class="stats">
         <div class="stat"><b>${d}</b><span>day${d === 1 ? '' : 's'} of doing stuff</span></div>
         <div class="stat"><b>${next ? `${next.inDays}D` : 'ALL'}</b><span>${next ? 'until the next unlock' : 'laws and packs open'}</span></div>
@@ -1133,7 +1161,9 @@ VIEWS.vault = () => {
           <summary><b>CLOSET</b><span>${S.closet.length} / ${WARDROBE_INFO.length}</span></summary>
           <p class="shelf-note">Drip drops as you finish things. Tap to wear it, tap again to take it off.</p>
           <div class="closet">${closet}</div>
+          ${proCloset}
         </details>
+        ${skins}
         ${shelf('KOANS', koansHave, KOANS.length, 'One a day, on the ticker up top. Everybody gets the same one.', list(KOANS, 'koans'))}
         ${shelf('LEGENDARY', raresHave, RARE_LINES.length, 'About one receipt in twenty comes out gold.', list(RARE_LINES, 'rares'))}
         ${shelf('BUT WHAT IF…', heardHave, OBJECTIONS.length, 'Every whine, answered. Tap BUT WHAT IF on the home screen.', list(OBJECTIONS.map((o) => o.q), 'heard', true))}
@@ -1307,11 +1337,15 @@ VIEWS.about = () => {
         <p>If you’re really struggling, this isn’t the tool for that. A person is.</p>
         ${helpLinks()}
         <h2>Keep your progress</h2>
-        <p>Your brain, streak and receipts live only in this browser. A backup code carries them to a new phone, or back after the browser clears its data.</p>
+        <p>Your brain, streak and receipts live only on this device. A backup code carries them to a new phone, or back if they ever get cleared.</p>
         <button class="btn ghost" data-a="backup">BACKUP CODE</button>
         ${canNudge() ? `<h2>Daily nudge</h2>
         <p>One a day. If you’ve already done something that day, it skips it.</p>
         <div class="chips">${[[null, 'OFF'], [9, '9 AM'], [12, 'NOON'], [18, '6 PM'], [20, '8 PM']].map(([h, label]) => `<button class="chip ${(S.nudge?.h ?? null) === h ? 'on' : ''}" data-a="nudge" data-h="${h ?? ''}">${label}</button>`).join('')}</div>` : ''}
+        ${storeAvailable() ? `<h2>Support it</h2>
+        <p>${S.pro ? 'You have Pro. Thank you.' : 'Pro adds bonus drip and receipt skins. Tips just feed the brain.'}</p>
+        <button class="btn ghost" data-a="shop">PRO AND TIP JAR</button>
+        <button class="link" data-a="restore-purchases">Restore purchases</button>` : ''}
         <h2>Sound</h2>
         <p>No sound on an iPhone? Check the silent switch on the side. The app follows it.</p>
         <h2>Start over</h2>
@@ -1346,6 +1380,64 @@ VIEWS.backup = () => {
   };
 };
 
+// ---------- pro and tips ----------
+
+VIEWS.shop = () => {
+  const prices = view.prices;
+  // undefined while loading, null when the store doesn't know the product yet.
+  const price = (id) => (prices ? prices[id] || null : undefined);
+  const proPrice = price(PRODUCTS.pro.id);
+  const proLabel = proPrice === undefined ? 'LOADING…' : proPrice ? `GET PRO · ${esc(proPrice)}` : 'NOT AVAILABLE RIGHT NOW';
+  const proBlock = S.pro
+    ? '<div class="pro-box owned"><b>YOU HAVE PRO</b><span>Bonus drip is in your closet. Skins are in the Vault. Thank you.</span></div>'
+    : `<div class="pro-box">
+        <b>${esc(PRODUCTS.pro.name)}</b>
+        <div class="pro-preview">${PRO_WARDROBE_INFO.slice(0, 3).map((p) => brainSVG(30, 'tiny', p.id)).join('')}</div>
+        <ul>${PRODUCTS.pro.perks.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+        <button class="btn mega" data-a="buy" data-id="${PRODUCTS.pro.id}" ${proPrice ? '' : 'disabled'}>${proLabel}</button>
+      </div>`;
+  const tips = PRODUCTS.tips.map((t) => {
+    const pr = price(t.id);
+    return `<button class="tip" data-a="tip" data-id="${t.id}" ${pr ? '' : 'disabled'}><span>${esc(t.name)}</span><b>${pr === undefined ? '…' : esc(pr || '—')}</b></button>`;
+  }).join('');
+  return {
+    html: step({
+      title: 'PRO AND|TIP JAR',
+      max: 100,
+      top: '<div style="flex:1"></div>',
+      body: `${isMockStore() ? '<p class="mock-note">TEST STORE. Nothing real is charged.</p>' : ''}
+        ${proBlock}
+        <h2 class="shop-h">TIP JAR</h2>
+        <p class="shop-note">Tips don’t unlock anything. They keep the brain fed.</p>
+        <div class="tips">${tips}</div>
+        <button class="link" data-a="restore-purchases">Restore purchases</button>`,
+    }),
+  };
+};
+VIEWS.shop.after = () => {
+  if (view.prices) return;
+  loadProducts([PRODUCTS.pro.id, ...PRODUCTS.tips.map((t) => t.id)]).then((list) => {
+    if (view.name !== 'shop') return;
+    view.prices = Object.fromEntries(list.map((x) => [x.id, x.price]));
+    render();
+  });
+};
+
+// Owned purchases come from the store on every launch, so refunds take Pro away again.
+// A store that can't be reached changes nothing.
+async function refreshPro() {
+  if (!storeAvailable() || isMockStore()) return;
+  const ids = await ownedProducts();
+  if (!Array.isArray(ids)) return;
+  const pro = ids.includes(PRODUCTS.pro.id);
+  if (pro !== S.pro) {
+    S.pro = pro;
+    ensureCloset();
+    save();
+    render();
+  }
+}
+
 // ---------- nudges ----------
 
 function refreshNudges() {
@@ -1359,6 +1451,7 @@ function refreshNudges() {
 async function share(makeCanvas, text, filename) {
   await fontsReady();
   const blob = await toBlob(makeCanvas());
+  if (isNative() && await shareImage(blob, text, filename)) return;
   const file = new File([blob], filename, { type: 'image/png' });
   try {
     if (navigator.canShare?.({ files: [file] })) {
@@ -1382,7 +1475,7 @@ function shareSheet(blob, text, filename) {
     <img src="${url}" alt="Your share card">
     <p class="sheet-hint">Screenshot it, or press and hold the image to save it.</p>
     <button class="btn mega" data-s="copy">COPY THE TEXT</button>
-    ${framed ? '' : `<a class="btn ghost" href="${url}" download="${esc(filename)}">SAVE IMAGE</a>`}
+    ${framed || isNative() ? '' : `<a class="btn ghost" href="${url}" download="${esc(filename)}">SAVE IMAGE</a>`}
     <textarea class="sheet-text" id="share-text" readonly hidden aria-label="Share text">${esc(text)}</textarea>
     <button class="link" data-s="close">Close</button>
   </div>`;
@@ -1500,6 +1593,7 @@ const ACTIONS = {
     }
     if (view.name === 'lesson' || view.name === 'pack') return go('method');
     if (view.name === 'backup') return go('about');
+    if (view.name === 'shop') return go(view.from && view.from !== 'shop' ? view.from : 'vault');
     return go('home');
   },
   exit: () => {
@@ -1739,7 +1833,8 @@ const ACTIONS = {
   'share-receipt': () => {
     const r = view.receipt;
     const show = view.showThing;
-    return share(() => renderReceiptCard(r, show), C.receiptShareText(r, shareUrl()), `receipt-${r.day}.png`);
+    const skin = skinOf();
+    return share(() => renderReceiptCard(r, show, skin.id === 'classic' ? null : skin), C.receiptShareText(r, shareUrl()), `receipt-${r.day}.png`);
   },
   'share-lifetime': () => {
     const stats = C.lifetime(S.receipts);
@@ -1789,6 +1884,7 @@ const ACTIONS = {
     buzz(12);
   },
   wear: (d) => {
+    if (!ownsPiece(d.id)) return;
     S.wear = S.wear === d.id ? null : d.id;
     setWorn(S.wear);
     save();
@@ -1814,6 +1910,58 @@ const ACTIONS = {
       toast('Notifications are off for R-MAXXING. Turn them on in Settings.');
     } else toast(h == null ? 'Nudges off.' : 'Set. One a day, no guilt.');
     render();
+  },
+  shop: () => go('shop', { from: view.name === 'shop' ? view.from : view.name }),
+  buy: async (d, el) => {
+    if (el.dataset.busy) return;
+    el.dataset.busy = '1';
+    el.textContent = 'ONE SEC…';
+    const r = await buyProduct(d.id);
+    if (r.ok) {
+      S.pro = true;
+      ensureCloset();
+      save();
+      sfx.legendary();
+      celebrate({ shape: 'star', motion: 'burst', count: 48 });
+      buzz('success');
+      toast('PRO. The brain thanks you.');
+    } else if (r.error) {
+      toast('That didn’t go through. Try again in a minute.');
+    }
+    if (view.name === 'shop') render();
+  },
+  tip: async (d, el) => {
+    if (el.dataset.busy) return;
+    el.dataset.busy = '1';
+    const r = await buyProduct(d.id);
+    delete el.dataset.busy;
+    if (r.ok) {
+      sfx.jingle(d.id + Date.now());
+      celebrate({ shape: 'juice', motion: 'fountain', count: 26 });
+      buzz('success');
+      toast(fresh('tip-thanks', TIP_THANKS).item);
+    } else if (r.error) {
+      toast('That didn’t go through. Try again in a minute.');
+    }
+  },
+  'restore-purchases': async () => {
+    toast('Checking with the App Store…');
+    const ids = await restorePurchases();
+    if (!Array.isArray(ids)) return toast('Couldn’t reach the App Store. Try again.');
+    S.pro = ids.includes(PRODUCTS.pro.id) || (isMockStore() && S.pro);
+    ensureCloset();
+    save();
+    toast(S.pro ? 'Pro restored.' : 'No purchases found for this Apple ID.');
+    return render();
+  },
+  skin: (d) => {
+    const k = RECEIPT_SKINS.find((x) => x.id === d.id);
+    if (!k) return undefined;
+    if (k.pro && !S.pro) return ACTIONS.shop();
+    S.skin = k.id;
+    save();
+    sfx.swish();
+    return render();
   },
   locked: (d) => toast(`Opens after ${dayWord(Number(d.need) - days())} of doing stuff. Bails count.`),
 
@@ -2011,6 +2159,7 @@ function boot() {
   }
   S.lastSeen = today;
   refreshNudges();
+  refreshPro();
 
   // A running timer survives a refresh or a locked phone. Stale drafts don't.
   if (S.active && Date.now() - S.active.createdAt > 12 * 3600 * 1000) S.active = null;

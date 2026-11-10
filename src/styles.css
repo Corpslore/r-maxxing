@@ -642,6 +642,43 @@ a.btn { text-decoration: none; }
 .hype { min-height: 2.6em; margin-top: 4px; text-align: center; font-weight: 800; font-size: 17px; text-wrap: balance; }
 .hype.in { animation: rise .35s ease both; }
 
+
+/* ---------- pro, tips, receipt skins ---------- */
+.pro-card { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; width: 100%; margin-top: 12px; padding: 14px; border-radius: 14px; background: linear-gradient(135deg, #FFE500, #FF3D8B); color: #0B0B0B; text-align: left; }
+.pro-card b { font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 22px; letter-spacing: .03em; }
+.pro-card span { grid-column: 1; font-weight: 700; font-size: 14px; }
+.pro-card i { grid-column: 2; grid-row: 1 / span 2; font-style: normal; font-family: "Anton", Impact, sans-serif; font-size: 18px; padding: 8px 12px; border-radius: 10px; background: #0B0B0B; color: #FFE500; }
+.pro-box { margin-top: 14px; padding: 16px; border-radius: 18px; background: var(--raised); box-shadow: inset 0 0 0 3px var(--sun); }
+.pro-box > b { display: block; font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 28px; letter-spacing: .02em; color: var(--sun); }
+.pro-box.owned span { display: block; margin-top: 6px; font-weight: 700; color: var(--mute); }
+.pro-box ul { margin: 10px 0 14px; padding-left: 20px; font-weight: 700; }
+.pro-box li { margin-top: 4px; }
+.pro-preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 26px 10px 0; }
+.shop-h { margin-top: 26px; font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 26px; letter-spacing: .02em; }
+.shop-note { color: var(--mute); font-weight: 600; font-size: 15px; margin-top: 4px; }
+.tips { display: grid; gap: 10px; margin-top: 12px; }
+.tip { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border-radius: 14px; background: var(--raised); box-shadow: inset 0 0 0 3px var(--line); text-align: left; font-weight: 800; }
+.tip b { font-family: "DM Mono", ui-monospace, monospace; font-weight: 500; color: var(--sun); white-space: nowrap; }
+.tip:disabled { opacity: .5; }
+.mock-note { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: #FF3D8B; color: #0B0B0B; font-weight: 800; font-size: 14px; }
+.closet-label { margin: 4px 0 8px; font-family: "DM Mono", ui-monospace, monospace; font-size: 13px; letter-spacing: .05em; color: var(--sun); }
+.closet-item.pro span { color: var(--sun); }
+.skins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.skin-chip { display: grid; place-items: center; gap: 2px; min-height: 58px; padding: 6px; border-radius: 10px; background: var(--paper); color: var(--ink); font-family: "DM Mono", ui-monospace, monospace; font-weight: 500; font-size: 13px; box-shadow: inset 0 0 0 3px var(--line); }
+.skin-chip.on { box-shadow: inset 0 0 0 4px var(--sun), 0 0 0 2px var(--bg); }
+.skin-chip small { font-size: 10.5px; opacity: .8; }
+
+.receipt.skin-neon { background: #0B0B0B; color: #7CFF4F; }
+.receipt.skin-bubblegum { background: #FF8FB4; color: #0B0B0B; }
+.receipt.skin-blueprint { background: #1E2BFF; color: #FFF8E7; }
+.receipt.skin-kraft { background: #C9A574; color: #2B1D0E; }
+.receipt.skin-neon .r-sub, .receipt.skin-neon .r-label, .receipt.skin-neon .r-row dt { color: #4FB833; }
+.receipt.skin-bubblegum .r-sub, .receipt.skin-bubblegum .r-label, .receipt.skin-bubblegum .r-row dt { color: #6B1F3D; }
+.receipt.skin-blueprint .r-sub, .receipt.skin-blueprint .r-label, .receipt.skin-blueprint .r-row dt { color: #CDD1FF; }
+.receipt.skin-kraft .r-sub, .receipt.skin-kraft .r-label, .receipt.skin-kraft .r-row dt { color: #5C4325; }
+.receipt[class*="skin-"] .r-rows { border-color: currentColor; }
+.receipt[class*="skin-"] .redact { background: currentColor; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .q-fuse i { animation: none; }

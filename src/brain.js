@@ -53,6 +53,16 @@ const FACES = {
 // Hats ride down as the lobes shrink, so they stay on the head; `face` pieces don't move.
 const K = '#0B0B0B';
 const circle = (x, y, r) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0`;
+// A five-point star as a closed path.
+const star = (cx, cy, r) => {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rr = i % 2 ? r * 0.45 : r;
+    pts.push(`${(cx + Math.cos(a) * rr).toFixed(1)} ${(cy + Math.sin(a) * rr).toFixed(1)}`);
+  }
+  return `M${pts.join('L')}Z`;
+};
 export const WARDROBE = {
   partyhat: [
     { d: 'M136 32L190 28L166 -44Z', fill: '#3BD1FF', stroke: K, w: 4 },
@@ -111,6 +121,44 @@ export const WARDROBE = {
     { d: 'M200 24C160 -22 140 62 200 38Z', fill: '#FF3D8B', stroke: K, w: 5 },
     { d: 'M200 24C240 -22 260 62 200 38Z', fill: '#FF3D8B', stroke: K, w: 5 },
     { d: circle(200, 31, 10), fill: '#C2185B', stroke: K, w: 4 },
+  ],
+  // ----- Pro pieces -----
+  wizard: [
+    { d: 'M94 36C94 22 232 22 232 36C232 48 94 48 94 36Z', fill: '#4B2BBF', stroke: K, w: 4 },
+    { d: 'M118 32L210 32L178 -74Z', fill: '#5B3BE0', stroke: K, w: 4 },
+    { d: star(166, 2, 9), fill: '#FFE500' },
+    { d: star(186, -30, 7), fill: '#FFE500' },
+    { d: star(152, -14, 5), fill: '#FFFFFF' },
+  ],
+  viking: [
+    { d: 'M104 22C78 14 62 -10 70 -36C80 -12 96 -2 112 4Z', fill: '#FFF8E7', stroke: K, w: 4 },
+    { d: 'M222 22C248 14 264 -10 256 -36C246 -12 230 -2 214 4Z', fill: '#FFF8E7', stroke: K, w: 4 },
+    { d: 'M100 46C100 -4 226 -8 228 46Z', fill: '#B0B7C3', stroke: K, w: 5 },
+    { d: 'M98 40H230', stroke: '#7A5A2E', w: 10 },
+    { d: 'M164 -4V40', stroke: '#7A5A2E', w: 8 },
+  ],
+  tophat: [
+    { d: 'M126 32V-44H200V32Z', fill: '#1A1A1A', stroke: K, w: 4 },
+    { d: 'M126 16H200', stroke: '#FF3D8B', w: 10 },
+    { d: 'M100 34C100 24 226 24 226 34C226 44 100 44 100 34Z', fill: '#1A1A1A', stroke: K, w: 4 },
+  ],
+  tiara: [
+    { d: 'M122 36C140 14 186 14 204 36', stroke: '#E8E8F0', w: 7 },
+    { d: 'M130 28L138 6L148 24L163 -14L178 24L188 6L196 28', stroke: '#E8E8F0', w: 6 },
+    { d: circle(163, 6, 8), fill: '#3BD1FF', stroke: '#E8E8F0', w: 3 },
+    { d: circle(139, 14, 5), fill: '#FF3D8B' },
+    { d: circle(187, 14, 5), fill: '#FF3D8B' },
+  ],
+  pirate: [
+    { d: 'M84 38C106 -16 220 -16 242 38C210 22 116 22 84 38Z', fill: '#1A1A1A', stroke: K, w: 4 },
+    { d: circle(163, 6, 10), fill: '#FFF8E7' },
+    { d: 'M148 22L178 32M178 22L148 32', stroke: '#FFF8E7', w: 5 },
+  ],
+  beanie: [
+    { d: 'M108 40C106 -8 220 -8 218 40Z', fill: '#FF3D8B', stroke: K, w: 4 },
+    { d: 'M140 30V8M163 30V2M186 30V8', stroke: '#C2185B', w: 4 },
+    { d: 'M102 40H224', stroke: '#C2185B', w: 15 },
+    { d: circle(163, -14, 15), fill: '#FFF8E7', stroke: K, w: 4 },
   ],
   mustache: [
     { d: 'M163 136C150 124 128 126 124 144C138 136 150 142 163 141C176 142 188 136 202 144C198 126 176 124 163 136Z', fill: '#3A2410', stroke: K, w: 3, face: true },
