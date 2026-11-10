@@ -615,7 +615,9 @@ const STEPS = {
   fast: (L) => {
     const think = L.verdict === 'think';
     const offerDraft = L.draftKind && !think;
-    const chips = think || offerDraft ? '' : `<div class="chips">${MOVE_CHIPS.map((c) => `<button class="chip" data-a="chip" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>`;
+    // Five suggestions per round, drawn from a bigger pool, so the screen isn't the same every time.
+    if (!L.chips) L.chips = C.shuffled(MOVE_CHIPS).slice(0, 5);
+    const chips = think || offerDraft ? '' : `<div class="chips">${L.chips.map((c) => `<button class="chip" data-a="chip" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>`;
     const draftCard = offerDraft
       ? `<button class="draft-card" data-a="to-draft"><span class="eyebrow">Looks like a message</span><strong>WRITE IT FOR ME</strong><span class="tag">GO</span></button>`
       : '';
@@ -974,7 +976,8 @@ VIEWS.close.after = () => {
   view.fresh = false;
   const bailed = view.receipt.outcome === 'bailed';
   shake();
-  buzz(50);
+  // A win feels like a win; bailing gets a light tap, never the same reward.
+  buzz(bailed ? 12 : 'success');
   if (bailed) sfx.womp();
   else {
     const r = view.receipt;

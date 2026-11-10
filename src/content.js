@@ -151,7 +151,12 @@ export const DRAFTS = [
   ] },
 ];
 
-export const MOVE_CHIPS = ['Write one ugly sentence.', 'Send one message.', 'Put my shoes on.', 'Open the thing.', 'Ask one question.'];
+// Tap-to-fill first steps on the fast lane. Five are shown per round.
+export const MOVE_CHIPS = [
+  'Write one ugly sentence.', 'Send one message.', 'Put my shoes on.', 'Open the thing.', 'Ask one question.',
+  'Set a 2-minute timer.', 'Stand up.', 'Make the first click.', 'Say it out loud once.', 'Do the worst part first.',
+  'Open a blank page.', 'Find the email address.', 'Put it on the calendar.', 'Clear one square foot.', 'Write the subject line.',
+];
 
 export const DREAD = ['Fine', 'Awkward', 'Bad', 'Disaster'];
 
