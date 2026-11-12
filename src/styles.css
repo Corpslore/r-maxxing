@@ -693,7 +693,9 @@ a.btn { text-decoration: none; }
 .nudge-card .chips { margin-top: 8px; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  /* Transitions off, not shortened: a short duration on every element turns ALL property changes into
+     transitions, so fitAll() measured headlines at their old size and blew every line up to the max. */
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
   .q-fuse i { animation: none; }
 }
 
