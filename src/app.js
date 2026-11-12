@@ -2357,14 +2357,21 @@ function boot() {
 function watchFrozenAnimations() {
   if (!document.getAnimations) return;
   const t0 = document.timeline?.currentTime;
+  const w0 = performance.now();
+  const shown = () => document.visibilityState === 'visible';
+  const wasShown = shown();
   // Only animations that already existed then and still haven't moved count: a brand-new one
   // can read zero at the moment of checking.
   const before = new Set(document.getAnimations());
   setTimeout(() => {
     const t1 = document.timeline?.currentTime;
-    if (t0 == null || t1 == null || t1 - t0 < 600) return;
-    const stuck = document.getAnimations().some((a) => before.has(a) && a.playState === 'running' && !a.currentTime
-      && Number.isFinite(a.effect?.getComputedTiming?.().endTime));
+    if (t0 == null || t1 == null) return;
+    const wall = performance.now() - w0;
+    // The whole animation clock can stop (Android with animations turned off does this), which leaves
+    // every headline on its first, scaled-up frame. A hidden page pauses the clock too, so that doesn't count.
+    const clockStopped = wasShown && shown() && wall > 1000 && t1 - t0 < wall / 4;
+    const stuck = clockStopped || (t1 - t0 >= 600 && document.getAnimations().some((a) => before.has(a) && a.playState === 'running' && !a.currentTime
+      && Number.isFinite(a.effect?.getComputedTiming?.().endTime)));
     if (stuck) {
       document.documentElement.classList.add('no-anim');
       fitAll();
