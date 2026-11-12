@@ -10,7 +10,7 @@ const P = () => (N()?.isNative ? N().NativePurchases || null : null);
 const MOCK = typeof location !== 'undefined'
   && /^(localhost|127\.)/.test(location.hostname)
   && new URLSearchParams(location.search).get('store') === 'mock';
-const MOCK_PRICES = { 'rmaxxing.pro': '$9.99 (test)', 'rmaxxing.tip.oj': '$1.99 (test)', 'rmaxxing.tip.sandwich': '$4.99 (test)', 'rmaxxing.tip.cart': '$9.99 (test)' };
+const MOCK_PRICES = { 'rmaxxing.pro': '$4.99 (test)', 'rmaxxing.tip.oj': '$1.99 (test)', 'rmaxxing.tip.sandwich': '$4.99 (test)', 'rmaxxing.tip.cart': '$9.99 (test)' };
 const mockOwned = new Set();
 
 export const storeAvailable = () => MOCK || !!P();
@@ -39,7 +39,8 @@ export async function buy(id) {
   const store = P();
   if (!store) return { error: 'The store isn’t available here.' };
   try {
-    await store.purchaseProduct({ productIdentifier: id, quantity: 1 });
+    // Tips are consumable: Android has to be told so it can sell them again (iOS ignores this).
+    await store.purchaseProduct({ productIdentifier: id, quantity: 1, isConsumable: id.startsWith('rmaxxing.tip.') });
     return { ok: true };
   } catch (err) {
     const msg = String(err?.message || err || '');

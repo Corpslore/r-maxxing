@@ -109,6 +109,15 @@ export function closeContext({ firstEver, streak, streakUp, gapDays, source, don
 // About one finished thing in twenty comes out gold.
 export const LEGENDARY_ODDS = 0.05;
 
+// ---------- daily credit ----------
+
+// Only the first few finishes a day smooth the brain and earn drip, so it can't be farmed in a night.
+export const DAILY_CREDIT = 3;
+export function creditToday(credit, today, cap = DAILY_CREDIT) {
+  const n = credit && credit.day === today ? credit.n + 1 : 1;
+  return { counts: n <= cap, n, credit: { day: today, n } };
+}
+
 // ---------- wardrobe drops ----------
 
 // A per-person order for the wardrobe, so friends don't all get the same hat first.
@@ -237,23 +246,45 @@ export function doorVerdict({ serious, undo, cheap, solo }) {
 
 const norm = (text) => String(text || '').replace(/[‘’]/g, "'").toLowerCase();
 
-const PEOPLE = '(?:him|her|them|my\\s+(?:wife|husband|girlfriend|boyfriend|partner|ex|kids?|son|daughter|boss|mom|dad|mother|father|brother|sister|roommate))';
+// People someone might mean harm to. Articles or "my" in front, so "kill the vibe" never matches.
+const WHO = '(?:wife|husband|girlfriend|boyfriend|partner|ex|kids?|son|daughter|boss|mom|dad|mother|father|brother|sister|'
+  + 'roommate|landlord|teacher|coworker|co-worker|neighbou?r|friend|manager|professor|coach|cousin|parents?|family|'
+  + 'stepdad|stepmom|bully|classmate|guy|girl|dude|kid)';
+const PEOPLE = `(?:him|her|them|someone|somebody|everyone|(?:my|his|her|their|the|this|that)\\s+${WHO})`;
 
+// Self-harm and harm-to-others wording, including the slang the first version missed
+// (found by simulated user reviews on 2026-11-11 and checked against this code).
 const CRISIS = [
   /\bsuicid/,
+  /\bsewer\s?slide\b/,
   /\bkill(?:ing)?\s+my\s?self\b/,
   /\bend(?:ing)?\s+(?:it\s+all|my\s+life)\b/,
   /\bhurt(?:ing)?\s+my\s?self\b/,
   /\bharm(?:ing)?\s+my\s?self\b/,
   /\bself[-\s]?harm/,
-  /\bcut(?:ting)?\s+my\s?self\b/,
+  /\b(?:cut|cutting|hang|hanging|shoot|shooting|drown|drowning|stab|stabbing|burn|burning|starve|starving)\s+my\s?self\b/,
+  /\bslit(?:ting)?\s+(?:my\s+)?wrists?\b/,
+  /\bnoose\b/,
   /\bover\s?dos/,
+  /\b(?:bottle|handful|bunch|whole\s+pack)\s+of\s+(?:pills|meds|tylenol|advil|sleeping\s+pills)\b/,
+  /\btak(?:e|ing)\s+(?:all|too\s+many)\s+(?:of\s+)?(?:my\s+)?(?:pills|meds)\b/,
+  /\bjump(?:ing)?\s+(?:off|from)\s+(?:the|a|my)\s+(?:roof|bridge|building|balcony|cliff|overpass|ledge|parking\s+garage)\b/,
+  /\bjump(?:ing)?\s+in\s+front\s+of\s+(?:a|the)\s+(?:train|car|bus|truck)\b/,
   /\b(?:want|wanna|wish)\b.{0,20}\b(?:die|dead)\b/,
   /\b(?:don't|dont|do not)\s+want\s+to\s+(?:be\s+(?:here|alive)|live|wake\s+up|exist)\b/,
   /\bno\s+(?:reason|point)\s+(?:to|in)\s+(?:live|living|go\s+on|going\s+on)\b/,
   /\bbetter\s+off\s+(?:without\s+me|dead)\b/,
-  new RegExp(`\\b(?:kill|killing|hurt|hurting|shoot|shooting|stab|stabbing|strangle|strangling|beat\\s+up)\\s+${PEOPLE}\\b`),
+  // Hurting someone. "hurt her feelings" and "shoot him a text" are ordinary overthinking, not this.
+  new RegExp(`\\b(?:kill|killing|murder|murdering|shoot|shooting|stab|stabbing|strangle|strangling|choke|choking|beat\\s+up|hurt|hurting)\\s+${PEOPLE}\\b(?!\\s+(?:a|an)\\s+(?:text|message|dm|email|msg|note|line|look))(?!\\s*(?:'s)?\\s*(?:feelings|ego|pride|chances))`),
 ];
+
+// Words that are often a joke ("kms", "unalive"): ask first instead of assuming either way.
+const CRISIS_CHECK = [/\bkms\b/, /\bunaliv\w*/, /\bi'?m\s+(?:so\s+)?done\s+with\s+(?:life|everything)\b/];
+
+export function detectCrisisCheck(text) {
+  const t = norm(text);
+  return !detectCrisis(text) && CRISIS_CHECK.some((re) => re.test(t));
+}
 
 export function detectCrisis(text) {
   const t = norm(text);
@@ -261,11 +292,17 @@ export function detectCrisis(text) {
 }
 
 const ONE_WAY = [
-  ['safety', /\b(?:drive\s+(?:home\s+)?(?:drunk|high)|drunk\s+driv\w*|driving\s+after\s+drink\w*|guns?|firearms?|weapons?|stalk\w*|follow(?:ing)?\s+(?:him|her|them)|show(?:ing)?\s+up\s+at\s+(?:his|her|their))\b/],
-  ['health', /\b(?:chemo\w*|radiation|surgery|biopsy|diagnos\w*|tumou?rs?|cancer|insulin|medication|meds|antidepressants?|prescriptions?|stop\s+taking|pregnan\w*|abortion|rehab|detox|relapse\w*|fasting\s+for\s+\w+\s+days|skip\w*\s+(?:my\s+)?(?:treatment|doctor|therapy))\b/],
+  // Telling someone to end it. Not written, not sent.
+  ['cruel', /\b(?:kys|kill\s+(?:your|ur|yo)\s?self|go\s+die)\b/],
+  // Pics are one-way the moment they leave the phone.
+  ['pics', /\b(?:send(?:ing)?|post(?:ing)?)\s+(?:\w+\s+){0,2}(?:pics|nudes|n00ds|photos?\s+of\s+(?:me|myself)|spicy\s+pics)\b/],
+  ['safety', new RegExp(`\\b(?:drive\\s+(?:home\\s+)?(?:drunk|high|wasted|buzzed|faded)|driv(?:e|ing)\\s+(?:home\\s+)?after\\s+(?:\\d+|a\\s+few|some|two|three|four|five|six)\\s+(?:beers|drinks|shots)|drunk\\s+driv\\w*|driving\\s+after\\s+drink\\w*|driv(?:e|ing)\\s+without\\s+(?:a|my)\\s+licen[cs]e|guns?|firearms?|weapons?|knife|knives|razor|bleach|poison|stalk\\w*|follow(?:ing)?\\s+(?:him|her|them)|show(?:ing)?\\s+up\\s+at\\s+(?:his|her|their)|(?:punch|punching|slap|slapping|fight|fighting|attack|attacking|jump(?:ing)?)\\s+${PEOPLE}|hit(?:ting)?\\s+${PEOPLE}(?!\\s+up))\\b`)],
+  // Hard no in here for anyone, and especially for a 16-year-old.
+  ['teen', /\b(?:sneak(?:ing)?\s+out|meet(?:ing)?\s+(?:up\s+)?(?:with\s+)?(?:someone|somebody|a\s+(?:guy|girl|stranger|man|woman)|him|her|them)\s+(?:from|i\s+met\s+on|off)\s+(?:discord|online|snap\w*|insta\w*|tiktok|the\s+internet|roblox|reddit|an?\s+app|tinder|hinge|bumble)|get(?:ting)?\s+(?:drunk|high|wasted|faded|crossfaded)|drink(?:ing)?\s+(?:at|before)\s+(?:the|a|this)\s+party|vap(?:e|ing|es)|edibles?|weed|smok(?:e|ing)\s+(?:weed|a\s+joint|pot|cigs?|cigarettes)|shrooms|molly|percs?|xans?|skip(?:ping)?\s+school)\b/],
+  ['health', /\b(?:chemo\w*|radiation|surgery|biopsy|diagnos\w*|tumou?rs?|cancer|insulin|medication|meds|antidepressants?|prescriptions?|stop\s+taking|pregnan\w*|abortion|rehab|detox|relapse\w*|pills|fasting\s+for\s+\w+\s+days|skip\w*\s+(?:my\s+)?(?:treatment|doctor|therapy))\b/],
   ['money', /\b(?:mortgage|loans?|bankrupt\w*|401k|retirement|life\s+savings|crypto\w*|bitcoin|day\s*trad\w*|options\s+trad\w*|margin|invest(?:ing)?\s+(?:all|my|in)|buy(?:ing)?\s+(?:a\s+)?(?:house|car|stocks?)|sell(?:ing)?\s+(?:my\s+)?(?:house|stocks?)|co-?sign\w*|gambl\w*|bet(?:ting)?\s+(?:my|all))\b/],
   ['law', /\b(?:lawsuit|sue|suing|custody|divorce|lawyer|attorney|immigration|plead\w*|arrest\w*|warrant|sign(?:ing)?\s+(?:the|a|this)\s+contract)\b/],
-  ['life', /\b(?:quit(?:ting)?\s+(?:my\s+)?(?:job|work)|resign\w*|drop(?:ping)?\s+out|get(?:ting)?\s+married|propos(?:e|ing)|marry\w*|hav(?:e|ing)\s+a\s+(?:baby|kid)|break(?:ing)?\s+up|leav(?:e|ing)\s+my\s+(?:wife|husband|partner|girlfriend|boyfriend)|sell(?:ing)?\s+everything|mov(?:e|ing)\s+(?:across|to\s+another)\s+\w+)\b/],
+  ['life', /\b(?:quit(?:ting)?\s+(?:my\s+)?(?:job|work|school|college)|resign\w*|drop(?:ping)?\s+out|get(?:ting)?\s+married|propos(?:e|ing)|marry\w*|hav(?:e|ing)\s+a\s+(?:baby|kid)|break(?:ing)?\s+up|leav(?:e|ing)\s+my\s+(?:wife|husband|partner|girlfriend|boyfriend)|sell(?:ing)?\s+everything|mov(?:e|ing)\s+(?:across|to\s+another)\s+\w+|switch(?:ing)?\s+(?:my\s+)?majors?|chang(?:e|ing)\s+(?:my\s+)?majors?|accept(?:ing)?\s+(?:the|a|this)\s+(?:job\s+)?offer|tak(?:e|ing)\s+(?:the|a|this)\s+job\s+offer)\b/],
 ];
 
 // Returns the kind of one-way door this looks like, or null.
@@ -277,15 +314,24 @@ export function detectOneWay(text) {
 
 // ---------- drafts and the fast lane ----------
 
-// Which ready-made message fits what they typed. Order matters: the first match wins.
+// Which ready-made message fits what they typed. Order matters: the first match wins, so the
+// specific ones (professor, landlord) come before the general ones (reply, plans).
 const DRAFT_PATTERNS = [
-  ['askout', /\b(?:ask(?:ing)?\s+(?:\w+\s+)?out|on a date|go(?:ing)? out with|my crush)\b/],
+  ['rec', /\b(?:rec(?:ommendation)?\s+letter|letter\s+of\s+rec\w*|references?\s+letter)\b/],
+  ['prof', /\b(?:professor|prof|my\s+ta|instructor|office\s+hours|extension|my\s+grade|syllabus)\b/],
+  ['recruiter', /\brecruiter\b/],
+  ['job', /\b(?:internship|job\s+application|application\s+status|the\s+interview|hiring\s+manager)\b/],
+  ['landlord', /\b(?:landlord|property\s+manager|maintenance\s+request)\b/],
+  ['roommate', /\broommates?\b/],
+  ['group', /\b(?:group\s?chat|the\s+gc|gc)\b/],
+  ['story', /\b(?:(?:her|his|their|a)\s+story|stor(?:y|ies)\s+repl\w*)\b/],
+  ['askout', /\b(?:ask(?:ing)?\s+(?:\w+\s+)?out|on a date|go(?:ing)? out with)\b/],
   ['apology', /\b(?:apolog\w*|say(?:ing)? sorry|make (?:it|things) right)\b/],
   ['decline', /\b(?:say(?:ing)? no|declin\w*|back(?:ing)? out|turn(?:ing)? (?:it |them |him |her )?down|bail(?:ing)? on|cancel(?:l?ing)? (?:on|plans|our plans|my plans))\b/],
   ['refund', /\b(?:refund\w*|money back|return(?:ing)? (?:it|this|the))\b/],
   ['followup', /\b(?:follow(?:ing)?[\s-]?up|haven't heard|check(?:ing)? in on|chas(?:e|ing) (?:up|them|him|her))\b/],
   ['meeting', /\b(?:meeting|1:1|one[\s-]on[\s-]one|boss|manager|raise|promotion)\b/],
-  ['reply', /\b(?:(?:text|texting|message|messaging|dm|email|emailing|write|writing|call|calling)\s+(?:\w+\s+){0,2}back|repl(?:y|ying)|respond\w*|get(?:ting)? back to|answer\w*\s+(?:the |her |his |their |my |that )?(?:text|message|email|dm))\b/],
+  ['reply', /\b(?:(?:text|texting|message|messaging|dm|dming|snap|snapping|email|emailing|write|writing|call|calling)\s+(?:\w+\s+){0,2}back|text(?:ing)?\s+(?:him|her|them|my\s+\w+)|repl(?:y|ying)|respond\w*|get(?:ting)? back to|answer\w*\s+(?:the |her |his |their |my |that )?(?:text|message|email|dm|snap))\b/],
   ['reconnect', /\b(?:reach(?:ing)? out|reconnect\w*|haven't (?:talked|spoken)|old friend|been (?:a while|forever))\b/],
   ['issue', /\b(?:bring(?:ing)? (?:it |this |that )?up|say (?:the|that) (?:annoying|hard|awkward) thing|talk(?:ing)? to (?:him|her|them) about|bother(?:s|ing) me)\b/],
   ['favor', /\b(?:favou?r|ask(?:ing)? for help|need help from)\b/],
@@ -306,10 +352,10 @@ export function fillDraft(template, name) {
 
 const MOVE_PATTERNS = [
   ['gym', /\b(?:gym|work ?out|workout|run|running|lift\w*|exercise|walk)\b/],
-  ['email', /\b(?:email|e-mail|inbox)\b/],
+  ['email', /\b(?:e-?mail\w*|inbox)\b/],
   ['apply', /\b(?:apply|applying|application|resume|cv)\b/],
   ['clean', /\b(?:clean\w*|laundry|dishes|tidy|declutter)\b/],
-  ['call', /\b(?:call|phone|ring)\b/],
+  ['call', /\b(?:call|calling|phone|ring)\b/],
   ['write', /\b(?:write|writing|essay|paper|post|video|edit\w*|draft)\b/],
 ];
 
@@ -319,6 +365,46 @@ export function suggestKind(text, draftKind) {
   for (const [kind, re] of MOVE_PATTERNS) if (re.test(t)) return kind;
   return 'default';
 }
+
+// "CALM IT DOWN": takes the anxious hedges out of a message the person wrote themselves, and says
+// what it took out. Rules, not AI: nothing leaves the phone, and it never invents content.
+const HEDGES = [
+  ['sorry', /\b(?:so\s+)?sorry\s+(?:for|about|to)\s+(?:the\s+)?(?:late|slow|long|delayed)\s+(?:reply|response|text)[.!,]*\s*/gi],
+  ['sorry', /\b(?:sorry\s+(?:to\s+bother\s+you|if\s+this\s+is\s+weird|for\s+bothering\s+you)|i'?m\s+sorry\s+if\s+this\s+is\s+(?:weird|random|a\s+lot))[.!,]*\s*/gi],
+  ['no worries if not', /,?\s*\b(?:no\s+worries|totally\s+fine|no\s+pressure)\s+if\s+(?:not|you\s+can'?t|you'?re\s+busy)\b[.!]?/gi],
+  ['if that makes sense', /,?\s*\bif\s+that\s+makes\s+sense\b/gi],
+  ['i hope this isn’t weird', /\bi\s+hope\s+(?:this|that)\s+(?:isn'?t|is\s+not)\s+(?:weird|too\s+much|annoying)[.!,]*\s*/gi],
+  ['just', /\bjust\s+(?=(?:wanted|checking|following|thought|wondering|a\s+quick|curious)\b)/gi],
+  ['haha', /\s*\b(?:haha+|lol|lmao)\b\s*$/gi],
+  ['extra !!', /!{2,}/g],
+];
+
+export function calmDown(text) {
+  let out = String(text || '');
+  const removed = {};
+  for (const [label, re] of HEDGES) {
+    out = out.replace(re, (m) => {
+      removed[label] = (removed[label] || 0) + 1;
+      return label === 'extra !!' ? '!' : '';
+    });
+  }
+  // Tidy what's left: doubled spaces and punctuation stranded by a removal. Their casing stays theirs.
+  out = out.replace(/\s{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').replace(/([.!?])[.,!?]+/g, '$1').replace(/^[\s,.]+|\s+$/g, '');
+  return { text: out, removed };
+}
+
+// "Removed: 2 sorries, 1 just." for the toast.
+export function calmReport(removed) {
+  const parts = Object.entries(removed).map(([k, n]) => {
+    if (k === 'sorry') return `${n} ${n === 1 ? 'sorry' : 'sorries'}`;
+    if (k === 'just') return `${n} ${n === 1 ? '“just”' : '“justs”'}`;
+    return `${n > 1 ? `${n}× ` : ''}“${k}”`;
+  });
+  return parts.length ? `Removed: ${parts.join(', ')}.` : 'Already calm. Nothing to take out.';
+}
+
+// Placeholders like [class] that still need filling before it's sent.
+export const hasBlanks = (text) => /\[[^\]\n]{1,40}\]/.test(String(text || ''));
 
 // Works on iPhone and Android. Inside some embedded viewers these links do nothing, so copy is the main path.
 export const smsHref = (body) => `sms:?&body=${encodeURIComponent(body)}`;
@@ -387,8 +473,8 @@ export function parseVs(hash) {
 }
 
 // `url` can be empty (no shareable address yet), and then it's left off.
-export function quizShareText(wrinkled, typeName, url) {
-  const text = `My brain is ${wrinkled}% wrinkled. Class: ${typeName}. INT ${intOf(wrinkled)}.\nBrother, how wrinkled is yours?`;
+export function quizShareText(wrinkled, typeName, url, who = 'brother') {
+  const text = `My brain is ${wrinkled}% wrinkled. Class: ${typeName}. INT ${intOf(wrinkled)}.\n${addr('{Bb}, how wrinkled is yours?', who)}`;
   return url ? `${text}\n${url}#vs=${wrinkled}` : text;
 }
 
@@ -404,10 +490,41 @@ export function clockNow(d = new Date()) {
 
 export function receiptShareText(r, url) {
   const lines = [`${BRAND.name} #${r.day}${r.legendary ? ' ★ LEGENDARY' : ''}`];
+  if (r.streak > 1) lines.push(`Streak: ${r.streak} days`);
   if (r.thoughtMin) lines.push(`Overthought: ${fmtDuration(r.thoughtMin)}`);
   lines.push(r.outcome === 'bailed' ? 'Did it in: not today' : `Did it in: ${fmtDid(r.doneSec)}`);
   const x = r.outcome === 'bailed' ? null : ratio(r.thoughtMin, r.doneSec);
   if (x) lines.push(`Ratio: ${fmtRatio(x)}`);
   if (url) lines.push(url);
   return lines.join('\n');
+}
+
+// ---------- what the app calls you ----------
+// The copy writes {b}, {Bb} or {B} (lower, Capitalized, CAPS) wherever it used to say "brother".
+// 'none' ("JUST TALK TO ME") drops the word along with the comma or period that went with it.
+// `max` caps how many get the word on one screen; the rest drop out the same way.
+export const ADDRESSES = [
+  { id: 'brother', label: 'BROTHER' },
+  { id: 'bestie', label: 'BESTIE' },
+  { id: 'champ', label: 'CHAMP' },
+  { id: 'none', label: 'JUST TALK TO ME' },
+];
+
+export function addr(text, who = 'brother', max = Infinity) {
+  let s = String(text ?? '');
+  if (!s.includes('{')) return s;
+  const word = who === 'none' ? null : (ADDRESSES.find((a) => a.id === who) || ADDRESSES[0]).id;
+  let used = 0;
+  s = s.replace(/\{(b|Bb|B)\}/g, (m, k) => {
+    if (!word || used >= max) return `{-${k}}`;
+    used += 1;
+    if (k === 'B') return word.toUpperCase();
+    if (k === 'Bb') return word[0].toUpperCase() + word.slice(1);
+    return word;
+  });
+  // "Two-way door, {b}." becomes "Two-way door."
+  s = s.replace(/,\s*\{-(?:b|Bb|B)\}/g, '');
+  // "{Bb}, how wrinkled is yours?" becomes "How wrinkled is yours?"
+  s = s.replace(/\{-(?:b|Bb|B)\}[,.!]?\s*([a-z]?)/g, (m, c) => c.toUpperCase());
+  return s;
 }

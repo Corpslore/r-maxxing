@@ -26,7 +26,7 @@ export const INTRO_CARDS = [
     foot: '*Please don’t. That’s a one-way door. We’ll get to that.',
   },
   { id: 'raccoon', tone: 'pink', ms: 5000, head: 'WE ARE THE|RACCOON|IN A HELMET,|RACING A GROCERY CART|DOWN A WATERSLIDE.' },
-  { id: 'free', tone: 'sun', head: 'WE ARE|SETTING PEOPLE|FREE HERE,|MY GUY.' },
+  { id: 'free', tone: 'sun', head: 'WE ARE|SETTING PEOPLE|FREE HERE,|MY GUY.', foot: 'Type the thing you’re stalling on. Get one tiny step. Hit GO. Get a receipt.' },
 ];
 
 export const INTRO = {
@@ -37,7 +37,9 @@ export const INTRO = {
   rival: 'OVERTHINKER',
 };
 
-export const HOME_CTA = 'BROTHER, I’M THINKING AGAIN';
+export const HOME_CTA = '{B}, I’M THINKING AGAIN';
+// Quiet mode's version. Same button, inside voice.
+export const HOME_CTA_QUIET = 'OKAY. I’M SPIRALING.';
 
 export const QUIZ = [
   { q: 'THE MENU HAS|40 THINGS ON IT.', a: ['Point at one.', 'Check the reviews.', 'Find photos of this exact dish from 2019.'] },
@@ -54,7 +56,7 @@ export const TYPES = [
   { name: 'LIGHT CREASING', roast: 'A few folds. You mostly just do stuff. Respect.' },
   { name: 'THE COMMITTEE', roast: 'Every decision goes to a vote. Nobody has ever won.' },
   { name: 'RESEARCH PHASE', roast: 'You’ve been looking into it since 2023.' },
-  { name: 'FULL WALNUT', roast: 'It’s all folds in there, brother. We have work to do.' },
+  { name: 'FULL WALNUT', roast: 'It’s all folds in there, {b}. We have work to do.' },
 ];
 
 export const THINK_TIMES = [
@@ -74,7 +76,7 @@ export const DOOR = [
 ];
 
 export const VERDICTS = {
-  send: { title: 'SEND|IT.', sub: 'Two-way door, brother. If it’s bad in there, come back out.', cta: 'LET’S GO' },
+  send: { title: 'SEND|IT.', sub: 'Two-way door, {b}. If it’s bad in there, come back out.', cta: 'LET’S GO' },
   shrink: { title: 'TOO BIG.|MAKE IT|STUPID SMALL.', sub: 'Do the version you can take back.', cta: 'SHRINK IT' },
   think: { title: 'WOAH.|ONE-WAY|DOOR.', sub: 'This is the one time we use the brain. Put a date on it and ask somebody who knows.', cta: 'SET THAT UP' },
 };
@@ -87,6 +89,17 @@ export const ONE_WAY_COPY = {
   law: { why: 'This has legal weight. The law does not care that you have no thoughts. Get somebody who knows.', move: 'Find one person who knows this area and send them the question.' },
   safety: { why: 'Somebody could get hurt. This is not a send-it situation.', move: 'Don’t do it today. Call somebody you trust.' },
   life: { why: 'Hard to walk that one back. Thinking is correct here. Put a date on it so it doesn’t go on forever.', move: 'Pick the date you’ll decide by, put it in your calendar and tell one person.' },
+  teen: { why: 'That’s one of the few things we don’t send. Not in here.', move: 'Don’t do it today. Text one person you trust about it instead.' },
+  pics: { why: 'Pics are a one-way door. Once they’re sent, they’re not yours anymore.', move: 'Don’t send it. If someone’s pushing you for it, that’s your answer about them.' },
+  cruel: { why: 'Not writing that one. Saying that to someone is a one-way door.', move: 'Put the phone down for a minute. If they really got to you, tell one person you trust.' },
+};
+
+// Shown when the wording is often a joke ("kms", "unalive"). No assumptions either way.
+export const CRISIS_CHECK_COPY = {
+  title: 'Quick check. Joke, or a real thing?',
+  sub: 'No wrong answer. We just want to point you the right way.',
+  joke: 'JOKE. KEEP GOING',
+  real: 'NOT A JOKE',
 };
 
 export const DEFAULT_THINK_MOVE = 'Write down the question, pick a date to decide by and ask somebody who’d know.';
@@ -107,34 +120,89 @@ export const MOVE_SUGGESTIONS = {
 // Write names as "Hey {name}," so a blank name still reads right ("Hey,").
 export const DRAFTS = [
   { id: 'reply', label: 'REPLY', subject: 'Getting back to you', variants: [
-    'Hey {name}, sorry for the slow reply. I saw your message and wanted to actually answer it. How are you?',
-    'Hey {name}! Finally getting back to you. Life got busy, nothing to do with you. What’s new?',
-    'Hey {name}, late reply, but I’m here. Are you around this week?',
+    'Hey {name}! [Your answer to what they asked.] How’s your week going?',
+    'Hey {name}, finally answering: [your answer]. What’s new with you?',
+    'Hey {name}, late reply, but yes to [the thing]. Are you around this week?',
+  ], casual: [
+    'heyy [your answer] how’s ur week going',
+    'omg sorry just saw this. [your answer]',
+    'late but yes to [the thing] lol. u around this week',
+  ] },
+  { id: 'group', label: 'GROUP CHAT', subject: 'Plans', variants: [
+    'Okay who’s free [day]? I’m in for [the plan].',
+    'Late to this but I’m in. What time?',
+  ], casual: [
+    'ok who’s free [day] i’m in for [the plan]',
+    'late to this but i’m in what time',
+    'wait i’m down. when',
+  ] },
+  { id: 'story', label: 'REPLY TO A STORY', subject: 'Your story', variants: [
+    'Wait, where is this?',
+    'This is so good. [What you liked.]',
+  ], casual: [
+    'wait where is this',
+    'ok this is so good',
+    'no bc i need to go here',
   ] },
   { id: 'plans', label: 'MAKE PLANS', subject: 'Catching up', variants: [
     'Hey {name}, what are you doing Saturday? Want to grab food?',
     'Hey {name}, it’s been too long. Free for a coffee this week?',
     'Hey {name}, I’m trying to actually see people more. Dinner sometime this week?',
+  ], casual: [
+    'what are u doing saturday? food?',
+    'it’s been too long. coffee this week?',
   ] },
   { id: 'askout', label: 'ASK THEM OUT', subject: 'Dinner?', note: 'If it’s a no, say “all good” and leave it there.', variants: [
-    'Hey {name}, I’d like to take you out. Are you free for a drink Thursday?',
+    'Hey {name}, I’d like to take you out. Are you free Thursday for food?',
     'Hey {name}, want to get dinner with me this week? Thursday or Saturday both work.',
+  ], casual: [
+    'ok random but do u wanna hang out this week',
+    'we should get food sometime. thursday?',
+  ] },
+  { id: 'prof', label: 'EMAIL A PROFESSOR', subject: 'Question about [class]', variants: [
+    'Hi Professor {name}, I’m in your [class] section. I’m behind on [assignment] and wanted to ask for an extension to [day]. I can have it to you by then. Thank you for considering it.',
+    'Hi Professor {name}, I’m stuck on [topic] from [class]. Could I come to office hours [day/time], or is there a better time?',
+    'Hi Professor {name}, I have a quick question about my grade on [assignment]. Could we go over it for a few minutes this week?',
+  ] },
+  { id: 'rec', label: 'ASK FOR A REC LETTER', subject: 'Recommendation request', variants: [
+    'Hi Professor {name}, I took your [class] in [semester] and really liked it. I’m applying to [program or job], and I’d be grateful if you’d write me a recommendation. It’s due [date]. I can send my resume and anything else that helps. Totally understand if you can’t.',
+  ] },
+  { id: 'job', label: 'JOB FOLLOW-UP', subject: 'Following up on my application', variants: [
+    'Hi {name}, I applied for the [role] position on [date] and wanted to check in. I’m still very interested and happy to send anything else you need. Thank you!',
+    'Hi {name}, thanks again for talking with me about the [role]. I enjoyed it and I’m still very interested. Is there anything else I can send?',
+  ] },
+  { id: 'recruiter', label: 'REPLY TO A RECRUITER', subject: 'Re: [role]', variants: [
+    'Hi {name}, thanks for reaching out! I’m interested. I’m free [time 1] or [time 2] this week for a call. Does either work?',
   ] },
   { id: 'meeting', label: 'ASK FOR A MEETING', subject: 'Quick chat this week?', variants: [
     'Hi {name}, do you have 20 minutes this week? I’d like your take on something I’m working on.',
     'Hi {name}, could we set up a quick call this week? I want to talk through where I’m at and what’s next.',
   ] },
   { id: 'followup', label: 'FOLLOW UP', subject: 'Following up', variants: [
-    'Hi {name}, just following up on my last message. Is there anything else you need from me?',
+    'Hi {name}, following up on my last message. Is there anything else you need from me?',
     'Hi {name}, checking in on this. Still interested, and happy to answer any questions.',
+  ] },
+  { id: 'roommate', label: 'ROOMMATE', subject: 'Quick thing', variants: [
+    'Hey {name}, can we figure out the [dishes/cleaning/guests] thing? Not mad, I just want it to stop being a thing. Got 5 minutes tonight?',
+  ], casual: [
+    'hey can we figure out the [dishes] thing? not mad just want it to stop being a thing',
+  ] },
+  { id: 'landlord', label: 'LANDLORD', subject: '[Issue] at [unit]', variants: [
+    'Hi {name}, the [issue] in [unit] needs fixing. It started [when]. When could someone come take a look?',
+    'Hi {name}, following up on the [issue] I reported on [date]. Is there an update on when it’ll be fixed?',
   ] },
   { id: 'apology', label: 'APOLOGIZE', subject: 'I’m sorry', variants: [
     'Hey {name}, I’ve been thinking about what happened. I’m sorry. You didn’t deserve that.',
     'Hey {name}, I owe you an apology. I got that wrong, and I’m sorry. No excuses.',
+  ], casual: [
+    'hey i was wrong about [the thing]. i’m sorry',
   ] },
   { id: 'decline', label: 'SAY NO', subject: 'Can’t make it', variants: [
     'Hey {name}, I’m going to pass on this one, but thank you for thinking of me.',
     'Hey {name}, I can’t make it after all. Sorry for the short notice.',
+  ], casual: [
+    'can’t make it this time but have fun',
+    'gonna pass on this one but ty for inviting me',
   ] },
   { id: 'refund', label: 'ASK FOR A REFUND', subject: 'Refund request', variants: [
     'Hi, I’d like to request a refund for my recent order. What do you need from me to process it?',
@@ -143,16 +211,23 @@ export const DRAFTS = [
   { id: 'favor', label: 'ASK A FAVOR', subject: 'Quick favor', variants: [
     'Hey {name}, could I ask you a favor? Totally fine to say no.',
     'Hey {name}, I could use a hand with something this week. Any chance you’re free for an hour?',
+  ], casual: [
+    'can i ask u a favor? totally fine if not',
   ] },
   { id: 'reconnect', label: 'RECONNECT', subject: 'Long time', variants: [
     'Hey {name}, you crossed my mind today. How have you been?',
     'Hey {name}, it’s been way too long. What are you up to these days?',
+  ], casual: [
+    'u crossed my mind today. how’ve u been',
   ] },
   { id: 'issue', label: 'BRING IT UP', subject: 'Quick talk?', variants: [
     'Hey {name}, can we talk about something small before it turns into something big? Nothing dramatic.',
     'Hey {name}, something’s been on my mind and I’d rather just say it. Got a few minutes later?',
+  ], casual: [
+    'hey can we talk about something small before it’s a big thing. nothing dramatic',
   ] },
 ];
+
 
 // Tap-to-fill first steps on the fast lane. Five are shown per round.
 export const MOVE_CHIPS = [
@@ -219,7 +294,7 @@ export const DONE_LINES = [
   'Done is done.',
   'That’s it. That was the whole thing.',
   'Not a thought.',
-  'Three weeks for that, brother.',
+  'Three weeks for that, {b}.',
   'The thing is now a thing you did.',
   'Somewhere, a dog is proud of you. He doesn’t know why.',
   'You can stop rehearsing it now.',
@@ -309,7 +384,14 @@ export const PRODUCTS = {
   pro: {
     id: 'rmaxxing.pro',
     name: 'R-MAXXING PRO',
-    perks: ['6 bonus pieces of drip, yours right away', '4 receipt skins for everything you share', 'One payment. Not a subscription. Ever.'],
+    pitch: 'More nerve. Bold versions of the scary messages, dares with stakes and the group chat pack. Plus hats.',
+    perks: [
+      'SAY IT BOLD: every message, written like you’re not scared',
+      'HARD MODE: 20 dares with actual stakes',
+      'GROUP CHAT PACK: 20 more BUT WHAT IF comebacks',
+      '6 bonus hats and 4 receipt colors',
+      'One payment. Not a subscription. Ever.',
+    ],
   },
   tips: [
     { id: 'rmaxxing.tip.oj', name: 'Buy the brain an orange juice' },
@@ -349,7 +431,7 @@ export const DRIP_AT = [1, 3, 5, 8, 11, 15, 19, 24, 29, 35, 42, 50];
 
 // Tap the brain on the home screen.
 export const POKE_LINES = [
-  'Brother.',
+  '{Bb}.',
   'Not a thought in here. Check.',
   'Ow. Go do the thing.',
   'I’m busy doing nothing.',
@@ -416,7 +498,7 @@ export const TIMER_LINES = [
   'Zero thoughts. Full send.',
   'This is what Thursday is for.',
   'You don’t need a plan. You need a minute.',
-  'Brother. You’re doing it.',
+  '{Bb}. You’re doing it.',
 ];
 
 // Daily nudges in the iPhone app. No guilt, no owl threats.
@@ -426,7 +508,7 @@ export const NUDGE_LINES = [
   'Your brain is getting wrinkly. One move smooths it.',
   'The thing you’re avoiding takes nine seconds.',
   'Not a thought. Just one move.',
-  'Brother. One thing.',
+  '{Bb}. One thing.',
   'Spin a dare. Let the wheel decide.',
   'The raccoon is waiting in the cart.',
   'Something new might drop today. Go find out.',
@@ -456,7 +538,7 @@ export const RARE_LINES = [
 // The "whiny objection, deadpan answer" format is the signature joke of the source videos.
 // Written to stay safe for anything: these are about texts and gyms, never about real stakes.
 export const OBJECTIONS = [
-  { q: 'But what if they don’t text back?', a: 'THEN THEY|DON’T TEXT|BACK, BROTHER.' },
+  { q: 'But what if they don’t text back?', a: 'THEN THEY|DON’T TEXT|BACK, {B}.' },
   { q: 'But what if it goes badly?', a: 'THEN IT|WENT BADLY.|STILL TUESDAY.' },
   { q: 'But what if I look stupid?', a: 'NOBODY|IS LOOKING|AT YOU.' },
   { q: 'But I’m not ready.', a: 'NOBODY|ASKED.' },
@@ -474,7 +556,7 @@ export const OBJECTIONS = [
   { q: 'But my friend said…', a: 'YOUR FRIEND|IS ALSO|SCARED.' },
   { q: 'But I might regret it.', a: 'YOU REGRET IT|ALREADY AND YOU|HAVEN’T DONE IT.' },
   { q: 'But I made a spreadsheet.', a: 'WE|KNOW.' },
-  { q: 'But what if I’m overthinking this?', a: 'BROTHER.' },
+  { q: 'But what if I’m overthinking this?', a: '{B}.', none: 'YOU ARE.|WE CAN|TELL.' },
   { q: 'But what if they say no?', a: 'THEN YOU|KNOW.|CONGRATS.' },
   { q: 'But I don’t know how.', a: 'NOBODY DID.|THEN THEY|DID.' },
   { q: 'But it has to be perfect.', a: 'IT WON’T BE.|SEND IT|ANYWAY.' },
@@ -560,6 +642,10 @@ const WILD_CARDS = [
 
 export const MOVES = [...PLAYBOOKS.flatMap((p) => p.moves), ...WILD_CARDS];
 
+// The daily mission is the same for everyone, so it comes from a pool that suits anyone on day one:
+// small dares, the wild cards and the home pack. Never from a pack that's still locked.
+export const DAILY_MOVES = [...WILD_CARDS, ...PLAYBOOKS.find((p) => p.id === 'home').moves, ...DARES];
+
 // act: 'loop' starts the door check, 'check' the loop check, 'dump' the brain dump.
 export const LESSONS = [
   {
@@ -573,7 +659,7 @@ export const LESSONS = [
   {
     id: 'doors',
     rule: 'MOST DOORS|SWING BOTH|WAYS.',
-    why: 'It’s a door, brother. If it’s bad in there, come back out. Most decisions can be undone, so they don’t need much thought.',
+    why: 'It’s a door, {b}. If it’s bad in there, come back out. Most decisions can be undone, so they don’t need much thought.',
     test: 'If this goes bad, can you try again next week? Then why are we still here?',
     cta: { label: 'CHECK A DOOR', act: 'door' },
     src: 'Two-way doors: Amazon 2015 shareholder letter',
@@ -640,3 +726,86 @@ export const UNLOCK_DAYS = {
 };
 
 export const CHECK_QS =['ADD A|NEW FACT?', 'CHANGE YOUR|OPTIONS?', 'MAKE THE NEXT|STEP CLEARER?'];
+
+// ---------- Pro content ----------
+// Pro sells nerve, not outfits: bold versions of every message, hard-mode dares and the group chat
+// pack. Everything the free app needs to work stays free, and safety is never behind it.
+
+// BOLD: every message written like you're not scared. Same [brackets] rule as the free drafts.
+export const BOLD_DRAFTS = {
+  reply: ['Hey {name}. [Your answer.] Let’s talk this week.', 'Yes to [the thing]. When works?'],
+  group: ['I’m in. [Day] at [time]. Who’s coming?', 'Making the call: [the plan], [day], [time]. Be there.'],
+  story: ['Okay, I need to go here. Take me next time.', 'This is the best thing I’ve seen all week.'],
+  plans: ['Hey {name}, Saturday. Food. You in?', 'Hey {name}, I’m picking the place this time. [Day], [time]. Don’t be late.'],
+  askout: ['Hey {name}, I like talking to you. Let me take you out Thursday.', 'Hey {name}, I’d like to take you on a date. Friday or Saturday?'],
+  prof: ['Hi Professor {name}, I’m in your [class] section. I need an extension on [assignment] until [day], and I’ll have it to you by then. Thank you.', 'Hi Professor {name}, I’ll be at office hours [day] to go over [topic]. See you then.'],
+  rec: ['Hi Professor {name}, I did my best work of the year in your [class]. I’m applying to [program or job], and you’re the person I want writing my recommendation. It’s due [date]. I’ll send everything you need today.'],
+  job: ['Hi {name}, I applied for the [role] on [date]. I’m a strong fit and I want this job. What’s the next step?'],
+  recruiter: ['Hi {name}, I’m interested. I’m free [time 1] or [time 2]. What’s the pay range for this role?'],
+  meeting: ['Hi {name}, I’d like 20 minutes this week to talk about [topic]. Does [day] work?'],
+  followup: ['Hi {name}, bumping this back to the top of your inbox. What’s the next step?'],
+  roommate: ['Hey {name}, the [dishes] thing has to stop. Can we fix it tonight? Five minutes.'],
+  landlord: ['Hi {name}, the [issue] in [unit] has been broken since [when]. Please send someone by [day]. Thank you.'],
+  apology: ['Hey {name}, I was wrong. I’m sorry. Here’s what I’ll do differently: [one thing].'],
+  decline: ['Hey {name}, I’m going to say no to this one. Thanks for asking me.'],
+  refund: ['Hi, I’m requesting a full refund for order [number]. It [what went wrong]. Please confirm when it’s processed.'],
+  favor: ['Hey {name}, I need a hand with [thing] on [day]. Can you help?'],
+  reconnect: ['Hey {name}, I miss talking to you. Call this week?'],
+  issue: ['Hey {name}, I need to bring something up: [the thing]. Can we talk tonight?'],
+};
+
+// HARD MODE: dares with social stakes. Still two-way doors, still safe for a 15-year-old.
+export const HARD_DARES = [
+  'Send “brother.” to the group chat. No context. Don’t explain.',
+  'Reply to their story with one word. Not “haha.”',
+  'Ask the question in class. The one you rehearsed.',
+  'Order first. Don’t look at what anyone else gets.',
+  'Post the thing. Don’t check it for an hour.',
+  'Call someone instead of texting them. They’ll live.',
+  'Send the text you drafted three days ago. As is.',
+  'Say “I don’t know” out loud in a conversation today.',
+  'Compliment a stranger’s shoes. Keep walking.',
+  'Ask for one thing at the counter: extra sauce, a fresh one, a different size.',
+  'Leave a voice memo longer than 30 seconds. No re-recording.',
+  'Make the plan in the group chat. Pick the day. Pick the place.',
+  'Text someone you lost touch with: “saw this and thought of you.”',
+  'Raise your hand first. Once.',
+  'Eat lunch somewhere new. On purpose.',
+  'Give your real opinion on a movie. Even the unpopular take.',
+  'Send the meme first. Don’t wait to see if anyone else laughs.',
+  'Say no to one thing today. No excuse attached.',
+  'Ask someone to hang out. Name the day.',
+  'Delete the draft you’ve rewritten four times. Write it once. Send.',
+];
+
+// The group chat pack: more BUT WHAT IF, for the things that happen in the chat.
+export const PRO_OBJECTIONS = [
+  { q: 'But what if they leave me on read?', a: 'THEN YOU|KNOW THEY|CAN READ.' },
+  { q: 'But what if nobody laughs?', a: 'SOMEBODY|LAUGHED.|SILENTLY.' },
+  { q: 'But what if it’s cringe?', a: 'CRINGE IS|JUST BRAVE|EARLY.' },
+  { q: 'But they posted and didn’t reply to me.', a: 'THEY ALSO|ATE LUNCH.|PEOPLE DO THINGS.' },
+  { q: 'But what if I double text?', a: 'DOUBLE|THE TEXT.|DOUBLE THE FUN.' },
+  { q: 'But the chat went quiet after I sent it.', a: 'IT’S|A TUESDAY.|PEOPLE ARE BUSY.' },
+  { q: 'But what if I said it wrong?', a: 'YOU SAID IT.|THAT’S THE|HARD PART.' },
+  { q: 'But what if they think I like them?', a: 'DO YOU?|THEN|GOOD.' },
+  { q: 'But I typed it and deleted it four times.', a: 'FIFTH TIME.|HIT|SEND.' },
+  { q: 'But they type faster than me.', a: 'IT’S NOT|A RACE.|IT’S A CHAT.' },
+  { q: 'But what if they just say “lol”?', a: '“LOL” IS|A WHOLE|SENTENCE.' },
+  { q: 'But what if I’m the only one who shows up?', a: 'THEN YOU|GET THE|GOOD SEAT.' },
+  { q: 'But what if my voice cracks?', a: 'EVERYONE’S|DOES.|EVEN LEGENDS.' },
+  { q: 'But they have more followers.', a: 'FOLLOWERS|AREN’T|FRIENDS.' },
+  { q: 'But what if they’re mad at me?', a: 'THEN ASK.|DON’T|GUESS.' },
+  { q: 'But what if I don’t get the joke?', a: 'ASK WHAT|IT MEANT.|POWER MOVE.' },
+  { q: 'But I don’t want to seem desperate.', a: 'ONE TEXT|ISN’T|DESPERATE.' },
+  { q: 'But they’re typing…', a: 'LET THEM|TYPE.|PHONE DOWN.' },
+  { q: 'But I sent it at 2am.', a: 'BOLD.|RESPECT.|GO TO SLEEP.' },
+  { q: 'But what if they don’t remember me?', a: 'THEN SAY|YOUR NAME.|EASY.' },
+];
+
+// After 10 PM, once: the app asks before it gets loud.
+export const LATE_NIGHT = {
+  title: 'IT’S LATE. QUIET MODE?',
+  sub: 'No horns, no shaking, no brain rain. Same app, inside voice.',
+  yes: 'YES, QUIET',
+  no: 'NO, LOUD',
+};

@@ -14,6 +14,9 @@ let ctx = null;
 let master = null;
 let noiseBuf = null;
 let tier = 0;
+// Quiet mode: the loud ones (horn, boom, womp, whine, groove, windup, legendary) stay silent,
+// and the soft ones play at half volume. The buzz carries the rest.
+let quiet = false;
 
 try {
   muted = localStorage.getItem(KEY) === '1';
@@ -29,10 +32,17 @@ export function toggleMute() {
   return muted;
 }
 
+export function setQuiet(v) {
+  quiet = !!v;
+  if (master) master.gain.value = quiet ? 0.45 : 0.9;
+}
+
 // 0 = wrinkled walnut ... 3 = smooth. The whole palette moves up with it.
 export function setTier(n) {
   tier = Math.max(0, Math.min(3, n | 0));
 }
+
+const loudAudio = () => (quiet ? null : audio());
 
 function audio() {
   if (muted) return null;
@@ -46,7 +56,7 @@ function audio() {
       limiter.attack.value = 0.003;
       limiter.release.value = 0.2;
       master = ctx.createGain();
-      master.gain.value = 0.9;
+      master.gain.value = quiet ? 0.45 : 0.9;
       master.connect(limiter);
       limiter.connect(ctx.destination);
     }
@@ -201,7 +211,7 @@ export function tick(pitch = 1) {
 // ---------- the big moments ----------
 
 export function boom() {
-  const ac = audio();
+  const ac = loudAudio();
   if (!ac) return;
   switch (variant('boom', 3)) {
     case 0:
@@ -221,7 +231,7 @@ export function boom() {
 
 // The air horn, in several moods. Pitched to the current key.
 export function horn() {
-  const ac = audio();
+  const ac = loudAudio();
   if (!ac) return;
   const k = 2 ** ((tier * 2) / 12) * jig(1, 0.02);
   const blast = (start, length, freqs, lift = 1.02) => freqs.forEach((f) => {
@@ -238,7 +248,7 @@ export function horn() {
 
 // Sad, never cruel. Bailing costs nothing; it just sounds funny.
 export function womp() {
-  const ac = audio();
+  const ac = loudAudio();
   if (!ac) return;
   switch (variant('womp', 3)) {
     case 0:
@@ -258,7 +268,7 @@ export function womp() {
 }
 
 export function groove() {
-  const ac = audio();
+  const ac = loudAudio();
   if (!ac) return;
   const lines = [
     [98, 98, 123, 110, 98, 147, 123, 98],
@@ -276,7 +286,7 @@ export function groove() {
 
 // Before the clock starts: every action needs a windup.
 export function windup() {
-  const ac = audio();
+  const ac = loudAudio();
   if (!ac) return;
   const f = note(0, -1);
   if (variant('windup', 2) === 0) {
@@ -307,7 +317,7 @@ export function unlock() {
 
 // Gold receipt: the biggest sound in the app, and the rarest.
 export function legendary() {
-  const ac = audio();
+  const ac = loudAudio();
   if (!ac) return;
   const k = note(0) / 392;
   [[392, 0], [494, 0.12], [587, 0.24], [784, 0.36]].forEach(([f, s]) => {
@@ -319,7 +329,7 @@ export function legendary() {
 
 // The "but what iiif" before the punchline lands.
 export function whine() {
-  const ac = audio();
+  const ac = loudAudio();
   if (!ac) return;
   const f = jig(330, 0.06);
   if (variant('whine', 2) === 0) tone(ac, { type: 'sawtooth', from: f, to: f * 1.5, length: 0.32, volume: 0.07, filter: 1500, vibrato: 12 });

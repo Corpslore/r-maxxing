@@ -2,7 +2,7 @@
 import { brainSVG } from './brain.js';
 import { BRAND, INTRO } from './content.js';
 
-const fighterName = () => BRAND.name.replace(/ING$/, 'ER');
+const fighterName = () => 'SMOOTH BRAIN';
 
 // Fighting-game select screen. The overthinker gets knocked out.
 export function vsScene() {

@@ -1,15 +1,15 @@
 import * as C from './core.js';
 import { SCENES } from './intro.js';
 import {
-  BAIL_LINES, BRAND, CHECK_QS, CLOSER, CONTEXT_LINES, DEFAULT_THINK_MOVE, DONE_LINES, DOOR, DREAD, HOME_CTA, INTRO, INTRO_CARDS,
-  KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ,
+  BAIL_LINES, BRAND, CHECK_QS, CLOSER, CONTEXT_LINES, DEFAULT_THINK_MOVE, DONE_LINES, DOOR, DREAD, HOME_CTA, HOME_CTA_QUIET, LATE_NIGHT, BOLD_DRAFTS, HARD_DARES, PRO_OBJECTIONS, INTRO, INTRO_CARDS,
+  KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
   PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
-import { brainSVG, setWorn, updateBrain } from './brain.js';
-import { canNudge, clearNudges, haptic, isNative, requestReview, scheduleNudges, shareImage, statusBar } from './native.js';
+import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
+import { canNudge, clearNudges, haptic, isNative, requestReview, scheduleNudges, shareImage, statusBar, updateWidget } from './native.js';
 import {
   fontsReady, renderLifetimeCard, renderObjectionCard, renderQuizCard, renderReceiptCard, toBlob,
 } from './cards.js';
@@ -21,7 +21,7 @@ const KEY = 'rmaxxing.v1';
 const DEFAULTS = {
   w: null, startW: null, typeName: null, quizSeconds: null, wis: C.START_WIS,
   streak: 0, lastDay: null, lastSeen: null, installLater: null,
-  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic',
+  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false,
   receipts: [], read: [], dailyDone: {}, active: null,
 };
 
@@ -89,6 +89,26 @@ function save() {
   try {
     localStorage.setItem(KEY, JSON.stringify(S));
   } catch { /* Private mode or full storage: the session still works. */ }
+  syncWidget();
+}
+
+// The Home Screen widget (iPhone app only): the brain, the streak, and two weeks of koans ahead
+// so it can turn the koan over at midnight without the app being opened. Batched, so a burst of
+// saves sends one update.
+let widgetTimer = null;
+function syncWidget() {
+  if (!isNative()) return;
+  clearTimeout(widgetTimer);
+  widgetTimer = setTimeout(() => {
+    const w = S.w ?? 60;
+    const now = new Date();
+    const koans = [];
+    for (let i = 0; i < 14; i++) {
+      const key = C.dateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + i));
+      koans.push({ d: key, t: todayKoan(key), n: C.dayNumber(key) });
+    }
+    updateWidget({ w, mood: moodFor(w), streak: S.streak || 0, koans });
+  }, 800);
 }
 
 const root = document.getElementById('app');
@@ -98,7 +118,7 @@ const framed = (() => { try { return window.self !== window.top; } catch { retur
 // Inside the iPhone app the page's own address is capacitor://localhost, so share the website instead.
 const shareUrl = () => (framed ? '' : isNative() ? PUBLIC_URL : location.origin + location.pathname);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const dailyMove = (key) => MOVES[C.dailyIndex(key, MOVES.length)];
+const dailyMove = (key) => DAILY_MOVES[C.dailyIndex(key, DAILY_MOVES.length)];
 const todayKoan = (key = C.dateKey()) => KOANS[C.dailyIndex(key, KOANS.length)];
 
 // Next line from a pool, never repeating until the whole pool has been used.
@@ -140,12 +160,19 @@ function nextOpening(d = days()) {
 }
 const installed = () => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
 const buzz = (ms = 12) => haptic(typeof ms !== 'number' ? 'success' : ms >= 45 ? 'heavy' : ms >= 25 ? 'medium' : 'light');
-const calm = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+// Quiet mode (in About, or the late-night prompt) and the phone's reduced-motion setting both mean no shaking.
+const calm = () => !!S.quiet || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const homeCta = () => (S.quiet ? HOME_CTA_QUIET : HOME_CTA);
+// Every BUT WHAT IF, plus the group chat pack with Pro.
+const objPool = () => (S.pro ? [...OBJECTIONS, ...PRO_OBJECTIONS] : OBJECTIONS);
+// Pro things show up locked only where they can be bought (the app, or the test store).
+const sellsPro = () => S.pro || storeAvailable();
 
 function toast(msg) {
   const el = document.getElementById('toast');
-  el.textContent = msg;
+  el.textContent = C.addr(msg, S.who);
   el.classList.add('on');
+  toast.shownAt = Date.now();
   clearTimeout(toast.t);
   toast.t = setTimeout(() => el.classList.remove('on'), 2800);
 }
@@ -208,9 +235,13 @@ const CELEBRATIONS = [
 const FLASHES = ['sun', 'pink', 'blue', 'lime', 'white'];
 
 function celebrate({ shape = 'brain', motion = 'fall', count = 22 } = {}) {
-  if (calm()) return;
+  // Quiet mode: no brain rain at all.
+  if (S.quiet) return;
+  // Reduced motion: the same confetti, scattered and still, for a moment. No movement.
+  const still = calm();
+  if (still) count = Math.min(count, 18);
   const layer = document.createElement('div');
-  layer.className = `rain m-${motion}`;
+  layer.className = still ? 'rain m-still' : `rain m-${motion}`;
   layer.setAttribute('aria-hidden', 'true');
   const brain = brainSVG(10);
   const kinds = Object.keys(PARTICLES);
@@ -222,7 +253,7 @@ function celebrate({ shape = 'brain', motion = 'fall', count = 22 } = {}) {
     const size = kind === 'brain' ? 34 + Math.random() * 46 : kind === 'confetti' || kind === 'dot' ? 10 + Math.random() * 14 : 22 + Math.random() * 26;
     const angle = Math.random() * Math.PI * 2;
     const dist = 30 + Math.random() * 45;
-    const style = [
+    const style = still ? [`left:${(Math.random() * 92).toFixed(1)}%`, `top:${(8 + Math.random() * 80).toFixed(1)}%`, `width:${size.toFixed(0)}px`].join(';') : [
       `left:${motion === 'fall' ? (Math.random() * 100).toFixed(1) : 50}%`,
       `width:${size.toFixed(0)}px`,
       `--spin:${(Math.random() * 720 - 360).toFixed(0)}deg`,
@@ -236,13 +267,15 @@ function celebrate({ shape = 'brain', motion = 'fall', count = 22 } = {}) {
   }
   layer.innerHTML = html;
   document.body.appendChild(layer);
-  setTimeout(() => layer.remove(), 2900);
+  setTimeout(() => layer.remove(), still ? 900 : 2900);
 }
 const brainRain = (count = 22) => celebrate({ shape: 'brain', motion: 'fall', count });
 
 // ---------- rendering ----------
 
 function go(name, params = {}) {
+  // An old toast doesn't follow you to the next screen; one raised for this move (just now) stays.
+  if (Date.now() - (toast.shownAt || 0) > 400) document.getElementById('toast')?.classList.remove('on');
   view = { name, ...params };
   render();
   window.scrollTo(0, 0);
@@ -254,12 +287,14 @@ function render() {
   introTimers.forEach(clearTimeout);
   introTimers = [];
   const fn = VIEWS[view.name] || VIEWS.home;
+  sfx.setQuiet(!!S.quiet);
   sfx.setTier(S.w == null || S.w >= 65 ? 0 : S.w >= 40 ? 1 : S.w >= 15 ? 2 : 3);
   const { tone = '', html } = fn();
   document.documentElement.dataset.tone = tone;
   // The tab screens start with the yellow ticker; the bright tones need dark status-bar text too.
   statusBar(['home', 'method', 'receipts', 'vault'].includes(view.name) || ['sun', 'pink', 'lime', 'orange'].includes(tone));
-  root.innerHTML = html;
+  // {b} tokens in the copy become what the person picked to be called, once per screen.
+  root.innerHTML = C.addr(html, S.who, 1);
   fitAll();
   fn.after?.();
   root.querySelector('h1')?.setAttribute('tabindex', '-1');
@@ -333,23 +368,46 @@ VIEWS.home = () => {
         <button class="hero-brain" data-a="poke" aria-label="Poke the brain">${brainSVG(w, 'wobble')}${stickerSVG('NOT A THOUGHT ★ HEAD EMPTY ★ ')}<span class="bubble" aria-live="polite"></span></button>
         <h1 class="score">${w}% <small>WRINKLED${S.streak > 1 ? ` · DAY ${S.streak}` : ''}</small></h1>
         ${statBars(w, S.wis)}
+        ${S.receipts.length < 3 ? '<p class="lower-better">LOWER IS BETTER. 0% IS THE DREAM.</p>' : ''}
       </section>
-      <button class="btn mega" data-a="start">${HOME_CTA}</button>
+      ${lateNightCard()}
+      <button class="btn mega" data-a="start">${homeCta()}</button>
       <button class="daily ${done ? 'done' : ''}" data-a="daily" ${done ? 'disabled' : ''}>
         <span class="eyebrow">Today’s mission #${n}</span>
         <strong>${esc(dailyMove(today))}</strong>
         <span class="tag">${done ? 'DONE' : 'DO IT'}</span>
       </button>
-      <div class="home-links three">
+      <div class="home-links ${S.receipts.length ? 'three' : ''}">
         <button class="mini-link" data-a="objection">BUT WHAT IF…</button>
         <button class="mini-link" data-a="spin">SPIN A DARE</button>
-        <button class="mini-link" data-a="check">HEAD STUCK?</button>
+        ${S.receipts.length ? '<button class="mini-link" data-a="check">HEAD STUCK?</button>' : ''}
       </div>
-      ${teaser()}
+      ${S.receipts.length ? teaser() : ''}
       ${installCard()}
     `),
   };
 };
+
+// After 10 PM, once: ask before it gets loud. Either answer stops the question.
+function lateNightCard() {
+  const h = new Date().getHours();
+  if (S.quiet || S.quietAsked || (h < 22 && h >= 5)) return '';
+  return `<div class="late-card">
+    <strong>${LATE_NIGHT.title}</strong>
+    <p>${LATE_NIGHT.sub}</p>
+    <div class="pair">
+      <button class="btn" data-a="quiet" data-v="1">${LATE_NIGHT.yes}</button>
+      <button class="btn ghost" data-a="quiet" data-v="0">${LATE_NIGHT.no}</button>
+    </div>
+  </div>`;
+}
+
+// "WHAT DO WE CALL YOU?": after the scan, and in About.
+function callMe(label = true) {
+  const who = S.who || 'brother';
+  const chips = C.ADDRESSES.map((a) => `<button class="chip ${who === a.id ? 'on' : ''}" data-a="who" data-v="${a.id}" aria-pressed="${who === a.id}">${a.label}</button>`).join('');
+  return `<div class="callme">${label ? '<p class="eyebrow">WHAT DO WE CALL YOU?</p>' : ''}<div class="chips">${chips}</div></div>`;
+}
 
 // A reason to come back tomorrow: what opens next, and when.
 function teaser() {
@@ -467,10 +525,11 @@ VIEWS.quizResult = () => {
         ${statBars(S.w, S.wis)}
         <p class="sub center-text">${esc(t.roast)} You took ${secs} second${secs === 1 ? '' : 's'}. One question was about tacos.</p>
         ${vs}
+        ${callMe()}
       </div>
       <footer class="step-foot">
         <button class="btn mega" data-a="share-quiz">SHARE MY SCAN</button>
-        <button class="btn ghost" data-a="tab" data-to="home">START SMOOTHING</button>
+        <button class="btn ghost" data-a="start">START SMOOTHING</button>
       </footer>
     </section>`,
   };
@@ -488,14 +547,16 @@ VIEWS.quizResult.after = () => {
 
 // Every objection plays once before any repeats. Hearing one files it in the Vault.
 function nextObjection(back) {
-  const r = fresh('objection', OBJECTIONS);
-  collect('heard', OBJECTIONS[r.index].q);
+  const pool = objPool();
+  const r = fresh('objection', pool);
+  collect('heard', pool[r.index].q);
   go('objection', { i: r.index, back: back || 'home' });
 }
 
 function objectionAt(i) {
-  const o = OBJECTIONS[i % OBJECTIONS.length];
-  const answer = o.time ? `IT’S ${C.clockNow()}.|THAT’S|A TIME.` : o.a;
+  const pool = objPool();
+  const o = pool[i % pool.length];
+  const answer = o.time ? `IT’S ${C.clockNow()}.|THAT’S|A TIME.` : C.addr(o.a, S.who) || o.none || o.a;
   return { q: o.q, answer };
 }
 
@@ -548,7 +609,11 @@ const PROGRESS = { thing: 10, howlong: 22, door: 34, verdict: 46, fast: 58, draf
 function currentDraft(L) {
   if (L.draftEdited && L.draft != null) return L.draft;
   const kind = DRAFTS.find((d) => d.id === L.draftKind) || DRAFTS[0];
-  return C.fillDraft(kind.variants[(L.draftVariant || 0) % kind.variants.length], L.draftName);
+  // "Text it like a text": the lowercase version, for kinds that have one.
+  // BOLD (Pro): written like you're not scared.
+  const bold = L.draftBold && S.pro && BOLD_DRAFTS[kind.id];
+  const list = bold || (L.draftCasual && kind.casual ? kind.casual : kind.variants);
+  return C.fillDraft(list[(L.draftVariant || 0) % list.length], L.draftName);
 }
 
 function syncDraftLinks() {
@@ -634,10 +699,10 @@ const STEPS = {
     if (!L.chips) L.chips = C.shuffled(MOVE_CHIPS).slice(0, 5);
     const chips = think || offerDraft ? '' : `<div class="chips">${L.chips.map((c) => `<button class="chip" data-a="chip" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>`;
     const draftCard = offerDraft
-      ? `<button class="draft-card" data-a="to-draft"><span class="eyebrow">Looks like a message</span><strong>WRITE IT FOR ME</strong><span class="tag">GO</span></button>`
-      : '';
+      ? `<button class="draft-card" data-a="to-draft"><span class="eyebrow">Looks like a message</span><strong>WRITE IT FOR ME</strong><span class="tag">WRITE</span></button>`
+      : think ? '' : '<button class="link words-link" data-a="to-draft">Need words? Pick a message →</button>';
     const dread = `<div class="dread-row" role="group" aria-label="How bad is it gonna go?">
-        <p class="eyebrow">How bad is it gonna go? We keep score.</p>
+        <p class="eyebrow">Call it: how bad will it go? We check later.</p>
         <div class="dread-pills">${DREAD.map((d, i) => `<button class="pill-btn" data-a="dread-pick" data-v="${i}" aria-pressed="${L.dread === i}">${d.toUpperCase()}</button>`).join('')}</div>
       </div>`;
     return {
@@ -666,7 +731,13 @@ const STEPS = {
         body: `<div class="chips draft-kinds">${kinds}</div>
           <input id="draft-name" class="name-field" type="text" maxlength="40" placeholder="Their name (optional)" value="${esc(L.draftName || '')}" autocomplete="off" aria-label="Their name">
           <textarea id="draft" class="draft-box" rows="4" maxlength="600" aria-label="Your message">${esc(text)}</textarea>
-          <div class="draft-tools"><button class="link" data-a="draft-another">↻ Another one</button></div>
+          <div class="draft-tools">
+            <button class="link" data-a="draft-another">↻ Another one</button>
+            ${kind.casual ? `<button class="link ${L.draftCasual ? 'on' : ''}" data-a="draft-casual" aria-pressed="${!!L.draftCasual}">${L.draftCasual ? 'Type it properly' : 'Text it like a text'}</button>` : ''}
+            <button class="link" data-a="draft-calm">Calm it down</button>
+            ${sellsPro() ? `<button class="link bold-link ${L.draftBold && S.pro ? 'on' : ''}" data-a="draft-bold" aria-pressed="${!!(L.draftBold && S.pro)}">${L.draftBold && S.pro ? 'Back to normal' : `Say it bold${S.pro ? '' : ' · PRO'}`}</button>` : ''}
+          </div>
+          ${C.hasBlanks(text) ? '<p class="draft-note">Fill in the [brackets] before you send it.</p>' : ''}
           ${kind.note ? `<p class="draft-note">${esc(kind.note)}</p>` : ''}`,
         foot: `<button class="btn mega" data-a="draft-go">COPY IT. START THE CLOCK.</button>
           <div class="pair">
@@ -757,7 +828,7 @@ function startTick() {
   const nextHype = () => {
     if (!hype || !S.active) return;
     S.active.hype = fresh('timer', TIMER_LINES).item;
-    hype.textContent = S.active.hype;
+    hype.textContent = C.addr(S.active.hype, S.who);
     hype.classList.remove('in');
     void hype.offsetWidth;
     hype.classList.add('in');
@@ -796,8 +867,12 @@ function finishLoop() {
   const L = S.active;
   const today = C.dateKey();
   const before = S.w ?? 60;
-  const after = C.smoothAfter(before, L.outcome);
-  const wisDelta = C.wisGain(L.outcome);
+  // The first 3 finishes a day count. More still get a receipt, but the brain isn't a microwave.
+  const credit = L.outcome === 'bailed' ? null : C.creditToday(S.credit, today);
+  if (credit) S.credit = credit.credit;
+  const counts = !!credit?.counts;
+  const after = counts ? C.smoothAfter(before, L.outcome) : before;
+  const wisDelta = counts ? C.wisGain(L.outcome) : 0;
   const prevDay = S.lastDay;
   const prevStreak = S.streak;
   const daysBefore = days();
@@ -820,8 +895,11 @@ function finishLoop() {
     reality: L.outcome === 'bailed' ? null : L.reality,
     at: Date.now(),
     day: C.dayNumber(today),
+    n: S.receipts.length + 1,
+    streak: L.outcome === 'bailed' ? 0 : S.streak,
   };
   const line = closeLine(receipt, {
+    capped: credit && !credit.counts ? credit.n : 0,
     firstEver,
     streak: S.streak,
     streakUp: S.streak > prevStreak,
@@ -841,8 +919,12 @@ function finishLoop() {
   // Ask the browser not to clear this site's data. Harmless if it says no.
   if (firstEver && !framed) navigator.storage?.persist?.().catch(() => {});
   const finished = S.receipts.filter((x) => x.outcome !== 'bailed').length;
-  const drip = L.outcome === 'bailed' ? null : C.dripDue(finished, S.closet, S.closetOrder, DRIP_AT);
-  if (drip) S.closet.push(drip);
+  // At most one new piece a day, so the closet fills over weeks, not one night.
+  const drip = counts && S.lastDripDay !== today ? C.dripDue(finished, S.closet, S.closetOrder, DRIP_AT) : null;
+  if (drip) {
+    S.closet.push(drip);
+    S.lastDripDay = today;
+  }
   // Ask for a rating right after a win, twice ever. The system decides whether it actually shows.
   if (L.outcome !== 'bailed' && [3, 12].includes(finished) && !S.reviewAt.includes(finished)) {
     S.reviewAt.push(finished);
@@ -851,7 +933,7 @@ function finishLoop() {
   save();
   refreshNudges();
   const flash = receipt.legendary ? 'sun' : fresh('flash', FLASHES).item;
-  go('close', { receipt, before, after, wisDelta, showThing: false, fresh: true, line, unlocked, forgiven, drip, flash });
+  go('close', { receipt, before, after, wisDelta, showThing: false, fresh: true, line, unlocked, forgiven, drip, flash, firstEver });
 }
 
 // ---------- close and receipts ----------
@@ -870,7 +952,7 @@ function receiptHTML(r, showThing) {
   const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? 'THINKING TO DOING' : 'THAT’S THE WHOLE THING';
   return `<div class="receipt-wrap"><div class="receipt ${r.legendary ? 'gold' : `skin-${skinOf().id}`}">
     <p class="r-title">${wordmark()}</p>
-    <p class="r-sub">RECEIPT #${r.day}${r.legendary ? ' ★ LEGENDARY' : ''}</p>
+    <p class="r-sub">RECEIPT #${r.n ?? r.day}${r.n ? ` · DAY ${r.day}` : ''}${r.legendary ? ' ★ LEGENDARY' : ''}</p>
     <div class="r-rows"><dl>${rows.map(([k, v]) => `<div class="r-row"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></div>
     <p class="r-big">${bigText}</p>
     <p class="r-label">${label}</p>
@@ -886,6 +968,8 @@ function closeLine(r, ctx) {
   if (r.reality === 3) return 'Okay. That one was bad. If it’s actually serious, talk to somebody who can help.';
   if (r.reality === 2) return 'That happens. Now you know something. Move on.';
   if (r.dread != null && r.reality < r.dread) return `You said ${DREAD[r.dread]}. It was ${DREAD[r.reality]}. Your brain is a liar.`;
+  if (ctx.capped) return `That’s ${ctx.capped} today. The brain only smooths ${C.DAILY_CREDIT} a day. It’s a brain, not a microwave.`;
+  if (r.doneSec != null && r.doneSec < 10) return 'Under 10 seconds. Either you’re a legend or you didn’t do it. We’ll never know.';
   if (Math.random() < C.LEGENDARY_ODDS) {
     // Unfound rare lines come first, so the collection fills before anything repeats.
     const unfound = RARE_LINES.filter((l) => !hasFound('rares', l));
@@ -907,7 +991,7 @@ VIEWS.close = () => {
   if (fromHistory) {
     return {
       html: `<main class="screen close">
-        ${big(`RECEIPT #${r.day}`, { max: 60 })}
+        ${big(`RECEIPT #${r.n ?? r.day}`, { max: 60 })}
         ${receiptHTML(r, showThing)}
         ${toggle}
         <div class="close-foot">
@@ -935,6 +1019,11 @@ VIEWS.close = () => {
       <p class="close-line">${esc(line || '')}</p>
       ${forgiven ? '<p class="forgiven">You skipped yesterday. Streak kept. A day off is a day off.</p>' : ''}
       ${drip ? dripCard(drip, after) : ''}
+      ${view.firstEver && canNudge() && !S.nudge && !view.nudgeAsked ? `<div class="nudge-card">
+        <b>WANT A NUDGE TOMORROW?</b>
+        <span>One a day. Skipped if you’ve already done something.</span>
+        <div class="chips">${[[15, 30, 'AFTER SCHOOL'], [18, 0, '6 PM'], [21, 0, '9 PM']].map(([h, m, label]) => `<button class="chip" data-a="nudge" data-h="${h}" data-m="${m}">${label}</button>`).join('')}<button class="chip" data-a="nudge" data-h="">NAH</button></div>
+      </div>` : ''}
       ${unlocked.map((u) => `<button class="unlock-card" data-a="${u.kind === 'lessons' ? 'lesson' : 'pack'}" data-id="${u.id}">
         <b>UNLOCKED</b><span>${esc(unlockName(u.kind, u.id))}</span></button>`).join('')}
       ${receiptHTML(r, showThing)}
@@ -1016,7 +1105,7 @@ VIEWS.receipts = () => {
     return {
       html: tabs('receipts', `${big('NO RECEIPTS.|THAT’S THE|PROBLEM.', { max: 110 })}
         <div style="flex:1;min-height:24px"></div>
-        <button class="btn mega" data-a="start">${HOME_CTA}</button>`),
+        <button class="btn mega" data-a="start">${homeCta()}</button>`),
     };
   }
   const forecast = stats.forecasts
@@ -1065,6 +1154,14 @@ VIEWS.method = () => {
 
 // ---------- spin a dare ----------
 
+function spinDare(hard) {
+  const h = !!hard && S.pro;
+  const pool = h ? HARD_DARES : darePool();
+  const pick = fresh(h ? 'hard' : 'dare', pool).item;
+  clearTimeout(VIEWS.spin.t);
+  go('spin', { phase: 'spinning', pick, pool: C.shuffled(pool), tone: fresh('theme', THEMES).item, hard: h });
+}
+
 function darePool() {
   const d = days();
   return [...DARES, ...PLAYBOOKS.filter((p) => packOpen(p.id, d)).flatMap((p) => p.moves)];
@@ -1075,14 +1172,15 @@ VIEWS.spin = () => {
   return {
     tone: view.tone,
     html: step({
-      title: landed ? 'THE WHEEL|HAS SPOKEN.' : 'SPINNING…',
+      title: landed ? (view.hard ? 'HARD|MODE.' : 'THE WHEEL|HAS SPOKEN.') : 'SPINNING…',
       max: 110,
       top: '<div style="flex:1"></div>',
       center: true,
       slam: landed,
       body: `<div class="reel ${landed ? 'landed' : ''}"><p id="reel" aria-live="polite">${esc(landed ? view.pick : view.pool[0])}</p></div>
         ${landed ? '<p class="sub center-text">The wheel doesn’t do take-backs. Well. One.</p>' : ''}`,
-      foot: landed ? '<button class="btn mega" data-a="dare-go">DO IT</button><button class="btn ghost" data-a="spin">SPIN AGAIN</button>' : '',
+      foot: landed ? `<button class="btn mega" data-a="dare-go">DO IT</button><button class="btn ghost" data-a="spin">SPIN AGAIN</button>
+        ${sellsPro() ? `<button class="link hard-link" data-a="spin-hard">${view.hard ? 'Back to normal dares' : `HARD MODE${S.pro ? '' : ' · PRO'}`}</button>` : ''}` : '',
     }),
   };
 };
@@ -1132,10 +1230,10 @@ VIEWS.vault = () => {
   </details>`;
   const koansHave = KOANS.filter((k) => hasFound('koans', k)).length;
   const raresHave = RARE_LINES.filter((k) => hasFound('rares', k)).length;
-  const heardHave = OBJECTIONS.filter((o) => hasFound('heard', o.q)).length;
+  const heardHave = objPool().filter((o) => hasFound('heard', o.q)).length;
   const sells = storeAvailable() || S.pro;
   const proCard = storeAvailable() && !S.pro
-    ? '<button class="pro-card" data-a="shop"><b>R-MAXXING PRO</b><span>6 bonus drip and 4 receipt skins. One payment, not a subscription.</span><i>SEE IT</i></button>'
+    ? '<button class="pro-card" data-a="shop"><b>R-MAXXING PRO</b><span>Bold messages, hard-mode dares, the group chat pack and 6 hats. One payment.</span><i>SEE IT</i></button>'
     : '';
   const proCloset = sells ? `<p class="closet-label">PRO DRIP</p><div class="closet">${PRO_WARDROBE_INFO.map((p) => (S.pro
     ? `<button class="closet-item ${S.wear === p.id ? 'on' : ''}" data-a="wear" data-id="${p.id}" aria-pressed="${S.wear === p.id}">${brainSVG(30, 'tiny', p.id)}<span>${esc(p.name)}</span></button>`
@@ -1166,7 +1264,7 @@ VIEWS.vault = () => {
         ${skins}
         ${shelf('KOANS', koansHave, KOANS.length, 'One a day, on the ticker up top. Everybody gets the same one.', list(KOANS, 'koans'))}
         ${shelf('LEGENDARY', raresHave, RARE_LINES.length, 'About one receipt in twenty comes out gold.', list(RARE_LINES, 'rares'))}
-        ${shelf('BUT WHAT IF…', heardHave, OBJECTIONS.length, 'Every whine, answered. Tap BUT WHAT IF on the home screen.', list(OBJECTIONS.map((o) => o.q), 'heard', true))}
+        ${shelf('BUT WHAT IF…', heardHave, objPool().length, 'Every whine, answered. Tap BUT WHAT IF on the home screen.', list(objPool().map((o) => o.q), 'heard', true))}
         ${shelf('LAWS', openLaws, LESSONS.length, 'The Great Method opens up as you go.', LESSONS.map((l, i) => (lessonOpen(l.id, d) ? `<li>${i + 1}. ${esc(l.rule.replace(/\|/g, ' '))}</li>` : '<li class="unfound"><i class="bars" aria-hidden="true"></i></li>')).join(''))}
         ${shelf('MISSION PACKS', openPacks, PLAYBOOKS.length, 'Six missions in each.', PLAYBOOKS.map((p) => (packOpen(p.id, d) ? `<li>${esc(p.name)}</li>` : '<li class="unfound"><i class="bars" aria-hidden="true"></i></li>')).join(''))}
       </div>`),
@@ -1310,6 +1408,21 @@ function helpLinks() {
 }
 
 // Deliberately the quietest screen in the app: no jokes, no sound, no motion.
+// "kms" and "unalive" are often jokes. Ask, quietly, before assuming either way.
+VIEWS.crisisCheck = () => ({
+  tone: 'calm',
+  html: `<section class="step quiet">
+    <div class="step-body center">
+      <h1 class="plain">${esc(CRISIS_CHECK_COPY.title)}</h1>
+      <p class="sub">${esc(CRISIS_CHECK_COPY.sub)}</p>
+    </div>
+    <footer class="step-foot">
+      <button class="btn" data-a="crisis-joke">${esc(CRISIS_CHECK_COPY.joke)}</button>
+      <button class="btn ghost" data-a="crisis-real">${esc(CRISIS_CHECK_COPY.real)}</button>
+    </footer>
+  </section>`,
+});
+
 VIEWS.crisis = () => ({
   tone: 'calm',
   html: `<section class="step quiet">
@@ -1341,11 +1454,16 @@ VIEWS.about = () => {
         <button class="btn ghost" data-a="backup">BACKUP CODE</button>
         ${canNudge() ? `<h2>Daily nudge</h2>
         <p>One a day. If you’ve already done something that day, it skips it.</p>
-        <div class="chips">${[[null, 'OFF'], [9, '9 AM'], [12, 'NOON'], [18, '6 PM'], [20, '8 PM']].map(([h, label]) => `<button class="chip ${(S.nudge?.h ?? null) === h ? 'on' : ''}" data-a="nudge" data-h="${h ?? ''}">${label}</button>`).join('')}</div>` : ''}
+        <div class="chips">${[[null, 0, 'OFF'], [9, 0, '9 AM'], [15, 30, '3:30 PM'], [18, 0, '6 PM'], [21, 0, '9 PM'], [22, 0, '10 PM']].map(([h, m, label]) => `<button class="chip ${(S.nudge?.h ?? null) === h && (S.nudge?.m || 0) === m ? 'on' : ''}" data-a="nudge" data-h="${h ?? ''}" data-m="${m}">${label}</button>`).join('')}</div>` : ''}
         ${storeAvailable() ? `<h2>Support it</h2>
-        <p>${S.pro ? 'You have Pro. Thank you.' : 'Pro adds bonus drip and receipt skins. Tips just feed the brain.'}</p>
+        <p>${S.pro ? 'You have Pro. Thank you.' : 'Pro adds bold messages, hard-mode dares and the group chat pack. Tips just feed the brain.'}</p>
         <button class="btn ghost" data-a="shop">PRO AND TIP JAR</button>
         <button class="link" data-a="restore-purchases">Restore purchases</button>` : ''}
+        <h2>What we call you</h2>
+        ${callMe(false)}
+        <h2>Volume</h2>
+        <p>Quiet mode: no horns, no shaking, no brain rain, and a calmer main button. The buzz stays.</p>
+        <div class="chips"><button class="chip ${S.quiet ? '' : 'on'}" data-a="quiet" data-v="0" aria-pressed="${!S.quiet}">LOUD</button><button class="chip ${S.quiet ? 'on' : ''}" data-a="quiet" data-v="1" aria-pressed="${!!S.quiet}">QUIET</button></div>
         <h2>Sound</h2>
         <p>No sound on an iPhone? Check the silent switch on the side. The app follows it.</p>
         <h2>Start over</h2>
@@ -1353,7 +1471,8 @@ VIEWS.about = () => {
         <button class="btn ghost" data-a="rescan">SCAN MY BRAIN AGAIN</button>
         ${install}
         <button class="btn ghost" data-a="erase" id="erase">ERASE EVERYTHING</button>
-        <a class="link" href="${framed ? 'https://corpslore.github.io/r-maxxing/privacy.html' : 'privacy.html'}" target="_blank" rel="noopener">Privacy policy</a>
+        <a class="link" href="${framed || isNative() ? `${PUBLIC_URL}support.html` : 'support.html'}" target="_blank" rel="noopener">Help and support</a>
+        <a class="link" href="${framed || isNative() ? `${PUBLIC_URL}privacy.html` : 'privacy.html'}" target="_blank" rel="noopener">Privacy policy</a>
       </div>`,
     }),
   };
@@ -1389,9 +1508,10 @@ VIEWS.shop = () => {
   const proPrice = price(PRODUCTS.pro.id);
   const proLabel = proPrice === undefined ? 'LOADING…' : proPrice ? `GET PRO · ${esc(proPrice)}` : 'NOT AVAILABLE RIGHT NOW';
   const proBlock = S.pro
-    ? '<div class="pro-box owned"><b>YOU HAVE PRO</b><span>Bonus drip is in your closet. Skins are in the Vault. Thank you.</span></div>'
+    ? '<div class="pro-box owned"><b>YOU HAVE PRO</b><span>SAY IT BOLD is on every message. HARD MODE is on the dare wheel. Hats are in your closet. Thank you.</span></div>'
     : `<div class="pro-box">
         <b>${esc(PRODUCTS.pro.name)}</b>
+        <p class="pro-pitch">${esc(PRODUCTS.pro.pitch)}</p>
         <div class="pro-preview">${PRO_WARDROBE_INFO.slice(0, 3).map((p) => brainSVG(30, 'tiny', p.id)).join('')}</div>
         <ul>${PRODUCTS.pro.perks.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
         <button class="btn mega" data-a="buy" data-id="${PRODUCTS.pro.id}" ${proPrice ? '' : 'disabled'}>${proLabel}</button>
@@ -1442,8 +1562,8 @@ async function refreshPro() {
 
 function refreshNudges() {
   if (!canNudge() || !S.nudge) return Promise.resolve(false);
-  const times = C.nudgeTimes({ hour: S.nudge.h, doneToday: S.lastDay === C.dateKey() });
-  return scheduleNudges(times, C.shuffled(NUDGE_LINES));
+  const times = C.nudgeTimes({ hour: S.nudge.h, minute: S.nudge.m || 0, doneToday: S.lastDay === C.dateKey() });
+  return scheduleNudges(times, C.shuffled(NUDGE_LINES).map((l) => C.addr(l, S.who)));
 }
 
 // ---------- sharing ----------
@@ -1529,11 +1649,12 @@ function startDraftClock(copied) {
   const L = S.active;
   if (!L || L.step !== 'draft') return;
   L.move = 'Send it.';
+  L.dur = 120;
   L.startedAt = Date.now();
   buzz(30);
   sfx.windup();
   loopTo('timer');
-  toast(copied ? 'Copied. Go send it.' : 'Copy it from below, then send it.');
+  toast(copied ? 'Copied. Go send it.' : 'Couldn’t copy. Press and hold the message to copy it.');
 }
 
 // After the timer: ask how long it had been put off only if we never asked, and never for the head-clearing walk.
@@ -1641,8 +1762,8 @@ const ACTIONS = {
   'share-quiz': () => {
     const t = TYPES[C.typeIndexFor(S.w)];
     return share(
-      () => renderQuizCard({ wrinkled: S.w, typeName: t.name, seconds: S.quizSeconds, wis: S.wis }),
-      C.quizShareText(S.w, t.name, shareUrl()),
+      () => renderQuizCard({ wrinkled: S.w, typeName: t.name, seconds: S.quizSeconds, wis: S.wis, who: S.who }),
+      C.quizShareText(S.w, t.name, shareUrl(), S.who),
       'my-brain-scan.png',
     );
   },
@@ -1652,6 +1773,7 @@ const ACTIONS = {
     L.thing = L.thing.trim();
     if (!L.thing) return undefined;
     if (C.detectCrisis(L.thing)) return go('crisis');
+    if (!L.jokeOk && C.detectCrisisCheck(L.thing)) return go('crisisCheck', { next: 'thing-next' });
     const kind = C.detectOneWay(L.thing);
     if (kind) {
       L.kind = kind;
@@ -1741,6 +1863,8 @@ const ACTIONS = {
     L.move = L.move.trim();
     if (!L.move) return undefined;
     if (C.detectCrisis(L.move)) return go('crisis');
+    if (L.draftKind && L.dur === 600) L.dur = 120;
+    if (!L.jokeOk && C.detectCrisisCheck(L.move)) return go('crisisCheck', { next: 'fast-go' });
     L.startedAt = Date.now();
     buzz(30);
     sfx.windup();
@@ -1771,6 +1895,8 @@ const ACTIONS = {
   'draft-go': () => {
     const L = S.active;
     const text = currentDraft(L);
+    // Nobody should send "[class]" to a professor.
+    if (C.hasBlanks(text)) return toast('Fill in the [brackets] first.');
     L.draft = text;
     // Called straight from the tap, so the browser allows it.
     const copying = navigator.clipboard?.writeText(text);
@@ -1778,11 +1904,45 @@ const ACTIONS = {
     return copying.then(() => startDraftClock(true), () => startDraftClock(false));
   },
   // A real link opens Messages or Mail; the clock starts a beat later so the link isn't cancelled by the redraw.
-  'draft-open': () => {
+  'draft-open': (d, el, e) => {
     const L = S.active;
+    if (C.hasBlanks(currentDraft(L))) {
+      e?.preventDefault();
+      return toast('Fill in the [brackets] first.');
+    }
     L.draft = currentDraft(L);
     save();
     setTimeout(() => startDraftClock(true), 600);
+  },
+  'draft-bold': () => {
+    if (!S.pro) return go('shop', { from: 'loop' });
+    const L = S.active;
+    L.draftBold = !L.draftBold;
+    L.draftCasual = false;
+    L.draftVariant = 0;
+    L.draftEdited = false;
+    save();
+    return go('loop');
+  },
+  'draft-casual': () => {
+    const L = S.active;
+    L.draftCasual = !L.draftCasual;
+    L.draftBold = false;
+    L.draftVariant = 0;
+    L.draftEdited = false;
+    save();
+    go('loop');
+  },
+  'draft-calm': () => {
+    const L = S.active;
+    const box = document.getElementById('draft');
+    const r = C.calmDown(box ? box.value : currentDraft(L));
+    L.draft = r.text;
+    L.draftEdited = true;
+    save();
+    if (box) box.value = r.text;
+    syncDraftLinks();
+    toast(C.calmReport(r.removed));
   },
   'draft-copy': () => {
     const text = S.active?.draft;
@@ -1873,7 +2033,7 @@ const ACTIONS = {
     }
     const bubble = el.querySelector('.bubble');
     if (bubble) {
-      bubble.textContent = fresh('poke', POKE_LINES).item;
+      bubble.textContent = C.addr(fresh('poke', POKE_LINES).item, S.who) || 'Hi.';
       bubble.classList.remove('on');
       void bubble.offsetWidth;
       bubble.classList.add('on');
@@ -1892,16 +2052,28 @@ const ACTIONS = {
     buzz(30);
     render();
   },
-  spin: () => {
-    const pool = darePool();
-    const pick = fresh('dare', pool).item;
-    clearTimeout(VIEWS.spin.t);
-    go('spin', { phase: 'spinning', pick, pool: C.shuffled(pool), tone: fresh('theme', THEMES).item });
-  },
+  spin: () => spinDare(view.name === 'spin' && view.hard),
+  'spin-hard': () => (S.pro ? spinDare(!view.hard) : go('shop', { from: 'home' })),
   'dare-go': () => prefilled(view.pick, 'dare'),
+  who: (d) => {
+    S.who = C.ADDRESSES.some((a) => a.id === d.v) ? d.v : 'brother';
+    save();
+    render();
+    // Reminders already on the phone were written with the old name.
+    if (S.nudge) refreshNudges();
+  },
+  quiet: (d) => {
+    S.quiet = d.v === '1';
+    S.quietAsked = true;
+    save();
+    sfx.setQuiet(S.quiet);
+    render();
+    toast(S.quiet ? 'Quiet mode. Inside voice.' : 'Loud mode. Sorry, neighbors.');
+  },
   nudge: async (d) => {
     const h = d.h === '' ? null : Number(d.h);
-    S.nudge = h == null ? null : { h };
+    S.nudge = h == null ? null : { h, m: Number(d.m) || 0 };
+    if (view.name === 'close') view.nudgeAsked = true;
     save();
     const ok = h == null ? await clearNudges() : await refreshNudges();
     if (h != null && !ok) {
@@ -2050,6 +2222,15 @@ const ACTIONS = {
   },
 
   'crisis-back': () => go(S.active ? 'loop' : 'home'),
+  'crisis-real': () => go('crisis'),
+  'crisis-joke': () => {
+    if (!S.active) return go('home');
+    S.active.jokeOk = true;
+    save();
+    const next = view.next || 'thing-next';
+    go('loop');
+    return ACTIONS[next]();
+  },
   rescan: () => {
     S.active = null;
     go('intro', { i: LAST_CARD });
@@ -2077,7 +2258,7 @@ const ACTIONS = {
 };
 
 // Silent actions: anything that makes its own noise, plus the crisis screen.
-const QUIET = new Set(['poke', 'wear', 'spin', 'timer-go', 'fast-go', 'draft-go', 'draft-open', 'dump-done', 'moonwalk', 'objection', 'objection-next', 'thing-next', 'to-door', 'crisis-back', 'mute', 'intro-tap', 'intro-skip', 'replay-intro']);
+const QUIET = new Set(['crisis-joke', 'crisis-real', 'poke', 'wear', 'spin', 'timer-go', 'fast-go', 'draft-go', 'draft-open', 'dump-done', 'moonwalk', 'objection', 'objection-next', 'thing-next', 'to-door', 'crisis-back', 'mute', 'intro-tap', 'intro-skip', 'replay-intro']);
 
 // ---------- events ----------
 
@@ -2170,7 +2351,29 @@ function boot() {
   return go('home');
 }
 
+// Android with "Remove animations" (or animator scale 0) can freeze CSS animations on their first
+// frame instead of skipping them: headlines stuck at 2.4x, faded-in text never arriving. Seen on an
+// emulator on 2026-11-11. If the clock runs but finite animations haven't moved, turn them all off.
+function watchFrozenAnimations() {
+  if (!document.getAnimations) return;
+  const t0 = document.timeline?.currentTime;
+  // Only animations that already existed then and still haven't moved count: a brand-new one
+  // can read zero at the moment of checking.
+  const before = new Set(document.getAnimations());
+  setTimeout(() => {
+    const t1 = document.timeline?.currentTime;
+    if (t0 == null || t1 == null || t1 - t0 < 600) return;
+    const stuck = document.getAnimations().some((a) => before.has(a) && a.playState === 'running' && !a.currentTime
+      && Number.isFinite(a.effect?.getComputedTiming?.().endTime));
+    if (stuck) {
+      document.documentElement.classList.add('no-anim');
+      fitAll();
+    }
+  }, 1400);
+}
+
 boot();
+watchFrozenAnimations();
 fontsReady().then(fitAll);
 document.fonts?.ready?.then(fitAll);
 

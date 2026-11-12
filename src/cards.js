@@ -2,7 +2,7 @@
 
 import { drawBrain } from './brain.js';
 import { BRAND, CLOSER, DREAD, PUBLIC_URL } from './content.js';
-import { fmtDid, fmtDuration, fmtRatio, intOf, ratio, thoughtsPerMinute } from './core.js';
+import { addr, fmtDid, fmtDuration, fmtRatio, intOf, ratio, thoughtsPerMinute } from './core.js';
 
 const SUN = '#FFE500';
 // Receipt skins swap these three for one card, then put them back (see receiptFrame).
@@ -119,7 +119,7 @@ function statBar(ctx, label, value, x, y, w) {
   ctx.fillRect(barX, y - 44, (w - 210) * Math.min(value / 20, 1), 44);
 }
 
-export function renderQuizCard({ wrinkled, typeName, seconds, wis }) {
+export function renderQuizCard({ wrinkled, typeName, seconds, wis, who = 'brother' }) {
   const [c, ctx] = canvas(1080, 1920);
   wordmark(ctx, 540, 190, 62);
   let y = poster(ctx, [`${wrinkled}%`, 'WRINKLED'], 540, 200, 920, 340);
@@ -148,7 +148,7 @@ export function renderQuizCard({ wrinkled, typeName, seconds, wis }) {
   const noteLines = lines(ctx, note, 920);
   noteLines.forEach((l, i) => centered(ctx, l, 540, y + i * 44, `800 36px ${BODY}`));
   y += noteLines.length * 44 + 30;
-  centered(ctx, footerHost() || 'BROTHER, WHAT’S YOUR SCORE?', 540, y, `400 50px ${DISPLAY}`, INK);
+  centered(ctx, footerHost() || addr('{B}, WHAT’S YOUR SCORE?', who), 540, y, `400 50px ${DISPLAY}`, INK);
   return c;
 }
 

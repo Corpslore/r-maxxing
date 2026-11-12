@@ -61,6 +61,13 @@ export async function clearNudges() {
   return scheduleNudges([], []);
 }
 
+// Hands the Home Screen widget its state (iPhone app only).
+export function updateWidget(data) {
+  try {
+    plugin('WidgetData')?.set?.({ json: JSON.stringify(data) })?.catch?.(() => {});
+  } catch { /* No widget here. */ }
+}
+
 // The system decides whether to show it (at most 3 times a year on iOS). Never from a button.
 export function requestReview() {
   try {
