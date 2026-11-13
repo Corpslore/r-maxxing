@@ -1028,3 +1028,123 @@ export const TRIAL = {
   nudge: 'Court is in session. Your brain is on trial today.',
   offer: 'COURT IS TOMORROW. WANT A SUMMONS?',
 };
+
+// ---------- today's rule ----------
+// From day 4 of showing up, each day gets a named rule that changes how a round plays,
+// and the day before says which one is coming. Hearing days belong to the court.
+// {record} {time} {old} {round} {n} {name} {tease} {dodged} {did} {rounds} {need} are filled in by the app.
+export const RULES = {
+  speedrun: {
+    name: 'SPEEDRUN',
+    card: 'The clock counts up. Beat your record: {record}.',
+    cardFirst: 'The clock counts up. Set a record.',
+    tease: 'The clock counts up. Beat your own time.',
+    tag: 'SPEEDRUN · RECORD {record}',
+    tagFirst: 'SPEEDRUN · NO RECORD YET',
+    ready: 'ON YOUR|MARKS.',
+    running: 'GO GO GO.',
+    ghost: 'RECORD: {record}',
+    past: 'PAST THE RECORD. STILL COUNTS.',
+    lines: {
+      first: { title: 'RECORD SET: {time}', sub: 'Now it’s the one to beat.' },
+      win: { title: 'NEW RECORD: {time}', sub: 'The old one was {old}. The brain didn’t make it to the starting line.' },
+      miss: { title: 'RECORD STANDS: {old}', sub: 'You: {time}. Done is done. It still counts.' },
+      fast: { title: 'UNDER 10 SECONDS', sub: 'Too fast to count for the record. Nobody believes under 10.' },
+    },
+  },
+  double: {
+    name: 'BACK TO BACK',
+    card: 'Two things. No break in between.',
+    cardRound2: 'Round 1 is done. Round 2 is waiting. No break.',
+    tease: 'Two things. No break in between.',
+    tag: 'BACK TO BACK · ROUND {round} OF 2',
+    round2: { title: 'ROUND 2.|NO BREAK.', placeholder: 'the next one. don’t think about it' },
+    next: 'ROUND 2 →',
+    lines: {
+      round: { title: 'ROUND 1: DONE.', sub: 'One more and it’s back to back. The brain is still catching up.' },
+      win: { title: 'BACK TO BACK.', sub: 'Two in a row. The brain didn’t get a word in. +1 WIS.' },
+    },
+  },
+  minute: {
+    name: 'ONE MINUTE',
+    card: 'The clock is 60 seconds. Only what fits.',
+    tease: 'The clock is 60 seconds. Only what fits.',
+    tag: 'ONE MINUTE',
+    fast: 'ONE MINUTE.|WHAT FITS?',
+    // The first step, cut down to what fits in 60 seconds. Same kinds as MOVE_SUGGESTIONS.
+    moves: {
+      draft: 'Write the first line. Send it.',
+      gym: 'Put your shoes on.',
+      email: 'Open it. Type the first sentence.',
+      apply: 'Open the application.',
+      clean: 'Clear one spot.',
+      call: 'Dial the number.',
+      write: 'Write the first sentence.',
+      default: 'Do the first 60 seconds of it.',
+    },
+    ready: 'SIXTY|SECONDS.',
+    running: 'MOVE.',
+    chips: ['Open it.', 'Write the first line.', 'Send one word.', 'Put it in the calendar.', 'Find the email.', 'Set an alarm for it.', 'Say the first sentence out loud.', 'Get out what you need.'],
+    lines: {
+      win: { title: 'INSIDE THE MINUTE.', sub: 'Done in {time}. The brain was still loading.' },
+      over: { title: 'OVER THE MINUTE.', sub: 'Done anyway. The minute was a suggestion.' },
+    },
+  },
+  pick: {
+    name: 'THE APP PICKS',
+    card: 'You don’t choose today. Open the envelope.',
+    tease: 'You don’t choose. The app does.',
+    tag: 'THE APP PICKS',
+    title: 'YOU DON’T|PICK TODAY.',
+    fast: 'THE APP|PICKED:',
+    sealed: 'TAP TO OPEN',
+    picked: 'The app picked:',
+    deal: 'DEAL.',
+    reroll: '↻ One re-roll',
+    rerolled: 'Re-roll used. That’s the one.',
+    own: 'Not today. I’ve got my own thing.',
+    lines: {
+      win: { title: 'THE APP PICKED. YOU DID IT.', sub: 'The brain didn’t get a vote.' },
+    },
+  },
+  boss: {
+    name: 'THE BOSS',
+    card: 'The one you’ve dodged longest. It has health. One hit is enough.',
+    tease: 'The one you’ve dodged longest. It has health.',
+    tag: 'BOSS FIGHT',
+    tagHp: 'BOSS FIGHT · {dodged} OF DODGING',
+    title: 'THE BOSS:|THE ONE YOU’VE|DODGED LONGEST.',
+    placeholder: 'the one that’s been sitting there',
+    howlong: 'HOW LONG|HAS IT BEEN|SITTING THERE?',
+    fast: 'FIRST|HIT:',
+    ready: 'BOSS|FIGHT.',
+    running: 'HIT IT.',
+    hp: 'BOSS HP',
+    lines: {
+      win: { title: 'BOSS DOWN.', sub: '{dodged} of dodging. {did} of doing.' },
+      winNoTime: { title: 'BOSS DOWN.', sub: 'It took {did}.' },
+      hurt: { title: 'BOSS HURT.', sub: 'Kinda counts. It has less health than it did this morning.' },
+      think: { title: 'BOSS: HANDLED ON PURPOSE.', sub: 'Some bosses get a plan, not a GO. A date and a person who knows is a hit.' },
+    },
+  },
+  today: 'DAY {n} · TODAY’S RULE',
+  done: 'DAY {n} · {name} ✓ DONE',
+  progress: '{rounds} OF {need}',
+  soonTitle: 'TOMORROW: {name}',
+  // Lock screens are public: the rule only, never the thing or a name.
+  nudge: 'Today’s rule: {name}. {tease}',
+  offer: 'TOMORROW: {name}. WANT A HEADS-UP?',
+};
+
+// The brain caught lying, by count: lie 1, 2 and 3 in order, then a rotation.
+// {said} {was} {n} are filled in by the app.
+export const LIAR_LINES = [
+  'You said {said}. It was {was}. Your brain is a liar.',
+  'You said {said}. It was {was}. That’s lie number {n}.',
+  'Lie number {n}. You said {said}. It was {was}. It’s a pattern now.',
+  'Lie number {n}. At this point it’s a hobby.',
+  'Lie number {n}. The brain’s lawyer stopped picking up.',
+  'Lie number {n}. Nobody in court believes it anymore.',
+  'Lie number {n}. Put it on the brain’s permanent record.',
+  'Lie number {n}. You said {said}. It was {was}. Same as always.',
+];

@@ -225,17 +225,17 @@ function barcode(ctx, x, y, w, h) {
 
 // gold: the legendary receipt. Black card, gold paper, a banner on top.
 // skin: { paper, ink, mute } for a receipt skin. Gold wins over any skin.
-function receiptFrame(sub, rows, bigText, bigLabel, { gold = false, skin = null, closer = CLOSER } = {}) {
+function receiptFrame(sub, rows, bigText, bigLabel, { gold = false, skin = null, closer = CLOSER, head = '' } = {}) {
   const saved = [INK, WHITE, MUTE];
   if (skin && !gold) [INK, WHITE, MUTE] = [skin.ink, skin.paper, skin.mute];
   try {
-    return drawReceipt(sub, rows, bigText, bigLabel, gold, closer);
+    return drawReceipt(sub, rows, bigText, bigLabel, gold, closer, head);
   } finally {
     [INK, WHITE, MUTE] = saved;
   }
 }
 
-function drawReceipt(sub, rows, bigText, bigLabel, gold, closerText = CLOSER) {
+function drawReceipt(sub, rows, bigText, bigLabel, gold, closerText = CLOSER, head = '') {
   const [c, ctx] = canvas(1080, 1920, gold ? '#0B0B0B' : SUN);
   const left = 170;
   const right = 910;
@@ -262,6 +262,8 @@ function drawReceipt(sub, rows, bigText, bigLabel, gold, closerText = CLOSER) {
   const top = Math.max(200, Math.round((1920 - paperH) / 2));
   zigzagPaper(ctx, 100, top, 880, paperH, 30, gold ? SUN : WHITE);
   if (gold) centered(ctx, 'LEGENDARY RECEIPT', 540, top - 54, `400 72px ${DISPLAY}`, SUN);
+  // Today's rule result (NEW RECORD, BOSS DOWN...), above the paper.
+  else if (head) centered(ctx, head, 540, top - 54, `400 72px ${DISPLAY}`, '#0B0B0B');
 
   wordmark(ctx, 540, top + 112, 92);
   centered(ctx, sub, 540, top + 168, `500 30px ${MONO}`, MUTE);
@@ -329,7 +331,7 @@ export function renderReceiptCard(r, showThing, skin = null) {
   const x = bailed ? null : ratio(r.thoughtMin, r.doneSec);
   const big = bailed ? 'CHICKENED OUT' : x ? fmtRatio(x) : 'DONE';
   const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? (kinda ? 'THINKING TO KINDA DOING' : 'THINKING TO DOING') : kinda ? 'KINDA COUNTS' : 'THAT’S THE WHOLE THING';
-  return receiptFrame(`RECEIPT #${r.n ?? r.day}   ${stamp(r.at)}`, rows, big, label, { gold: !!r.legendary, skin, closer: r.closer || CLOSER });
+  return receiptFrame(`RECEIPT #${r.n ?? r.day}   ${stamp(r.at)}`, rows, big, label, { gold: !!r.legendary, skin, closer: r.closer || CLOSER, head: r.stamp || '' });
 }
 
 export function renderLifetimeCard(stats, wrinkled, wis, at = Date.now()) {

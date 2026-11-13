@@ -564,6 +564,79 @@ export function trialVerdict(c) {
   return 'continued';
 }
 
+// Lie number n gets its own line: the first three in order, then a rotation. Same n, same line.
+export function liarIndex(n, len) {
+  if (!(n >= 1) || len < 1) return 0;
+  if (n <= 3 || len <= 3) return Math.min(n, len) - 1;
+  return 3 + ((n - 4) % (len - 3));
+}
+
+// ---------- today's rule ----------
+// From the 4th day of showing up, every day gets a named rule that changes how a round plays,
+// teased the day before. Hearing days belong to the court.
+
+export const RULE_START = 4;
+const RULE_ARC = { 4: 'speedrun', 5: 'double', 6: 'minute', 8: 'pick', 9: 'boss' };
+export const RULE_CYCLE = ['speedrun', 'double', 'minute', 'pick', 'boss'];
+// Rounds a rule needs before it's done. Everything not listed needs one.
+export const RULE_ROUNDS = { double: 2 };
+
+export function ruleForDay(n) {
+  if (!(n >= RULE_START) || TRIAL_DAYS.includes(n)) return null;
+  return RULE_ARC[n] || RULE_CYCLE[(n - 10) % RULE_CYCLE.length];
+}
+
+// Which day of showing up `today` is. It only moves when something gets done, so a gap skips nothing.
+export const dayOfShowingUp = (receipts, today) => daysActiveBefore(receipts, today) + 1;
+export const ruleOn = (receipts, today) => ruleForDay(dayOfShowingUp(receipts, today));
+
+// Rounds of `rule` finished on `today`. Chickening out doesn't count.
+export function ruleRounds(receipts, rule, today) {
+  return (receipts || []).filter((r) => r.rule === rule && r.outcome !== 'bailed' && dateKey(new Date(r.at)) === today).length;
+}
+export const ruleDone = (receipts, rule, today) => ruleRounds(receipts, rule, today) >= (RULE_ROUNDS[rule] || 1);
+
+// The speedrun record: the fastest thing fully done in 10 seconds or more. Under 10, nobody believes it.
+export const RECORD_MIN_SEC = 10;
+export function speedRecord(receipts) {
+  const times = (receipts || []).filter((r) => r.outcome === 'did' && r.doneSec >= RECORD_MIN_SEC).map((r) => r.doneSec);
+  return times.length ? Math.min(...times) : null;
+}
+
+// What a finished round of a rule earned. `before` is the receipts before this one.
+// head: the word on the level-up screen. stamp: what goes on the receipt. Null when there's nothing to say.
+export function ruleResult(r, before, { think = false } = {}) {
+  if (!r?.rule || r.outcome === 'bailed') return null;
+  const did = r.outcome === 'did';
+  switch (r.rule) {
+    case 'speedrun': {
+      const record = speedRecord(before);
+      const counts = did && r.doneSec >= RECORD_MIN_SEC;
+      if (counts && record == null) return { kind: 'first', head: 'RECORD SET', stamp: 'RECORD SET', record };
+      if (counts && r.doneSec < record) return { kind: 'win', head: 'NEW RECORD', stamp: 'NEW RECORD', record };
+      return { kind: did && r.doneSec < RECORD_MIN_SEC ? 'fast' : 'miss', head: null, stamp: 'SPEEDRUN', record };
+    }
+    case 'double': {
+      const today = dateKey(new Date(r.at));
+      const rounds = ruleRounds(before, 'double', today) + 1;
+      return rounds >= RULE_ROUNDS.double
+        ? { kind: 'win', head: 'BACK TO BACK', stamp: 'BACK TO BACK', bonus: 1 }
+        : { kind: 'round', head: `ROUND ${rounds}`, stamp: `ROUND ${rounds}` };
+    }
+    case 'minute':
+      return r.doneSec != null && r.doneSec <= 60
+        ? { kind: 'win', head: 'INSIDE THE MINUTE', stamp: 'ONE MINUTE' }
+        : { kind: 'over', head: null, stamp: 'ONE MINUTE' };
+    case 'pick':
+      return { kind: 'win', head: null, stamp: 'THE APP PICKED' };
+    case 'boss':
+      if (think) return { kind: 'think', head: null, stamp: 'BOSS: ON PURPOSE' };
+      return did ? { kind: 'win', head: 'BOSS DOWN', stamp: 'BOSS DOWN' } : { kind: 'hurt', head: 'BOSS HURT', stamp: 'BOSS HURT' };
+    default:
+      return null;
+  }
+}
+
 // ---------- share text and challenge links ----------
 
 export function parseVs(hash) {

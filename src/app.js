@@ -5,7 +5,7 @@ import {
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
-  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
@@ -176,6 +176,50 @@ function trialAhead() {
 }
 // {key} fill-ins for copy. Unknown keys (like the {b} address tokens) are left for render().
 const fill = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => (k in o ? String(o[k]) : m));
+
+// Today's rule (day 4 on, not hearing days). It plays on rounds started from home until it's done.
+const recordText = () => {
+  const s = C.speedRecord(S.receipts);
+  return s == null ? null : C.fmtClock(s);
+};
+function ruleNow() {
+  const today = C.dateKey();
+  const id = C.ruleOn(S.receipts, today);
+  if (!id || !RULES[id]) return null;
+  const rounds = C.ruleRounds(S.receipts, id, today);
+  const need = C.RULE_ROUNDS[id] || 1;
+  return { id, n: C.dayOfShowingUp(S.receipts, today), rounds, need, done: rounds >= need };
+}
+// Tomorrow's rule, once something's been done today. Before that, today's is the one that matters.
+function ruleTomorrow() {
+  const today = C.dateKey();
+  if (!S.receipts.some((r) => C.dateKey(new Date(r.at)) === today)) return null;
+  const id = C.ruleOn(S.receipts, tomorrowKey());
+  return id && RULES[id] ? id : null;
+}
+// The label a rule round wears on every screen of the loop.
+function ruleTag(L) {
+  const R = L?.rule && RULES[L.rule];
+  if (!R) return '';
+  const rec = recordText();
+  let text = fill(R.tag, { round: L.round || 1 });
+  if (L.rule === 'speedrun') text = rec ? fill(R.tag, { record: rec }) : R.tagFirst;
+  if (L.rule === 'boss' && L.thoughtMin) text = fill(R.tagHp, { dodged: C.fmtDuration(L.thoughtMin).toUpperCase() });
+  return `<span class="rule-tag t-${L.rule}">${esc(text)}</span>`;
+}
+// A round started from home on a rule day plays by the rule.
+function ruleRound() {
+  const r = ruleNow();
+  if (!r || r.done) return {};
+  const R = RULES[r.id];
+  const base = { rule: r.id, round: r.rounds + 1, theme: { speedrun: 'lime', double: 'orange', minute: 'pink', pick: 'blue', boss: '' }[r.id] };
+  if (r.id === 'boss') return { ...base, title: R.title, placeholder: R.placeholder };
+  if (r.id === 'pick') return { ...base, step: 'pick' };
+  if (r.id === 'minute') return { ...base, dur: 60 };
+  if (r.id === 'double' && r.rounds) return { ...base, title: R.round2.title, placeholder: R.round2.placeholder };
+  return base;
+}
+const ruleSoon = (id) => `<b>${fill(RULES.soonTitle, { name: RULES[id].name })}</b><span>${RULES[id].tease}</span>`;
 const installed =() => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
 const buzz = (ms = 12) => haptic(typeof ms !== 'number' ? 'success' : ms >= 45 ? 'heavy' : ms >= 25 ? 'medium' : 'light');
 // Quiet mode (in About, or the late-night prompt) and the phone's reduced-motion setting both mean no shaking.
@@ -401,6 +445,7 @@ VIEWS.home = () => {
         ${S.receipts.length < 3 ? '<p class="lower-better">LOWER IS BETTER. 0% IS THE DREAM.</p>' : credLine()}
       </section>
       ${lateNightCard()}
+      ${ruleCard()}
       <button class="btn mega" data-a="start">${homeCta()}</button>
       <button class="daily ${done ? 'done' : ''}" data-a="daily" ${done ? 'disabled' : ''}>
         <span class="eyebrow">Today’s mission #${n}</span>
@@ -430,6 +475,32 @@ function lateNightCard() {
       <button class="btn ghost" data-a="quiet" data-v="0">${LATE_NIGHT.no}</button>
     </div>
   </div>`;
+}
+
+// Day 4 on: today's rule, right above the button that starts it. Once it's done, what's tomorrow.
+function ruleCard() {
+  const r = ruleNow();
+  if (!r) return '';
+  const R = RULES[r.id];
+  // Done: the card turns into tomorrow's, in tomorrow's color.
+  if (r.done) {
+    const next = ruleTomorrow();
+    return `<div class="rule-card done t-${next || r.id}">
+      <span class="eyebrow">${fill(RULES.done, { n: r.n, name: R.name })}</span>
+      <strong>${next ? fill(RULES.soonTitle, { name: RULES[next].name }) : R.name}</strong>
+      ${next ? `<span>${RULES[next].tease}</span>` : ''}
+    </div>`;
+  }
+  const rec = recordText();
+  let line = R.card;
+  if (r.id === 'speedrun') line = rec ? fill(R.card, { record: rec }) : R.cardFirst;
+  if (r.id === 'double' && r.rounds) line = R.cardRound2;
+  const count = r.need > 1 ? ` <small>${fill(RULES.progress, { rounds: r.rounds, need: r.need })}</small>` : '';
+  return `<button class="rule-card t-${r.id}" data-a="start" aria-label="${esc(`${R.name}. ${line}`)}">
+    <span class="eyebrow">${fill(RULES.today, { n: r.n })}</span>
+    <strong>${R.name}${count}</strong>
+    <span>${esc(line)}</span>
+  </button>`;
 }
 
 // "WHAT DO WE CALL YOU?": after the scan, and in About.
@@ -489,7 +560,8 @@ VIEWS.verdict = () => {
   const ans = verdictLine(r);
   // The prediction from yesterday, called out when the brain was wrong.
   const lied = res === 'fine' && r.dread != null && r.dread >= 1;
-  const sub = lied ? `You said ${DREAD[r.dread]}. It was fine. Your brain lied again.` : ans.sub;
+  const lies = lied ? C.trialCase(S.receipts).lies : 0;
+  const sub = lied ? `You said ${DREAD[r.dread]}. It was fine. ${lies > 1 ? `Lie number ${lies}.` : 'Your brain lied.'}` : ans.sub;
   return {
     tone: { fine: 'lime', weird: 'pink', read: 'blue', did: 'orange', date: 'blue', asked: 'lime' }[res] || 'lime',
     html: step({
@@ -651,6 +723,9 @@ function teaser() {
     const title = fill(ahead.how === 'soon' ? TRIAL.soonTitle : TRIAL.actTitle, { name: t.name });
     return `<button class="teaser court" data-a="tab" data-to="receipts"><b>${title}</b><span>${ahead.how === 'soon' ? t.soon : TRIAL.act}</span></button>`;
   }
+  // No rule today (days 1 to 3, hearing days) and something's done: say what tomorrow's rule is.
+  const rule = !ruleNow() && ruleTomorrow();
+  if (rule) return `<div class="teaser rule t-${rule}">${ruleSoon(rule)}</div>`;
   const d = days();
   const next = nextOpening(d);
   const label = next
@@ -870,6 +945,7 @@ const STEPS = {
   thing: (L) => ({
     html: step({
       title: L.title || 'WHAT ARE WE|OVERTHINKING?',
+      eyebrow: ruleTag(L),
       progress: PROGRESS.thing,
       body: `<textarea id="thing" class="field" rows="2" maxlength="140" placeholder="${esc(L.placeholder || (L.placeholder = fresh('placeholder', THING_PLACEHOLDERS).item))}" aria-label="What you’re overthinking" autofocus>${esc(L.thing)}</textarea>`,
       foot: `<button class="btn" id="next" data-a="thing-next" ${L.thing.trim() ? '' : 'disabled'}>NEXT</button>
@@ -878,9 +954,10 @@ const STEPS = {
     }),
   }),
 
-  howlong: () => ({
+  howlong: (L) => ({
     html: step({
-      title: 'HOW LONG|HAVE WE BEEN|ON THIS?',
+      title: L.rule === 'boss' && !L.forced ? RULES.boss.howlong : 'HOW LONG|HAVE WE BEEN|ON THIS?',
+      eyebrow: ruleTag(L),
       max: 90,
       progress: PROGRESS.howlong,
       body: `<div class="choices">${THINK_TIMES.map((t) => `<button class="choice" data-a="howlong" data-m="${t.minutes}">${t.label}</button>`).join('')}</div>`,
@@ -937,8 +1014,8 @@ const STEPS = {
     const think = L.verdict === 'think';
     const offerDraft = L.draftKind && !think;
     // Five suggestions per round, drawn from a bigger pool, so the screen isn't the same every time.
-    if (!L.chips) L.chips = C.shuffled(MOVE_CHIPS).slice(0, 5);
-    const chips = think || offerDraft ? '' : `<div class="chips">${L.chips.map((c) => `<button class="chip" data-a="chip" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>`;
+    if (!L.chips) L.chips = C.shuffled(L.rule === 'minute' ? RULES.minute.chips : MOVE_CHIPS).slice(0, 5);
+    const chips = think || offerDraft || L.rule === 'pick' ? '' : `<div class="chips">${L.chips.map((c) => `<button class="chip" data-a="chip" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>`;
     const draftCard = offerDraft
       ? `<button class="draft-card" data-a="to-draft"><span class="eyebrow">Looks like a message</span><strong>WRITE IT FOR ME</strong><span class="tag">WRITE</span></button>`
       : think ? '' : '<button class="link words-link" data-a="to-draft">Need words? Pick a message →</button>';
@@ -949,9 +1026,10 @@ const STEPS = {
     return {
       tone: L.theme || '',
       html: step({
-        title: think ? 'THE FIRST|10 MINUTES:' : 'FIRST|TINY STEP:',
+        title: think ? 'THE FIRST|10 MINUTES:' : RULES[L.rule]?.fast || 'FIRST|TINY STEP:',
+        eyebrow: ruleTag(L),
         max: 96,
-        sub: L.source === 'free' || L.source === 'retry' ? esc(L.thing) : '',
+        sub: (L.source === 'free' || L.source === 'retry') && L.thing !== L.move ? esc(L.thing) : '',
         progress: PROGRESS.fast,
         pin: true,
         body: `<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step">${esc(L.move)}</textarea>${draftCard}${dread}${chips}`,
@@ -993,15 +1071,27 @@ const STEPS = {
 
   timer: (L) => {
     const running = !!L.startedAt;
+    const R = L.verdict === 'think' ? null : RULES[L.rule];
+    const speed = L.rule === 'speedrun';
+    const rec = speed ? recordText() : null;
+    let title = running ? 'NOT A THOUGHT.' : 'NOTHING TO DECIDE.';
+    if (R?.ready) title = running ? R.running : R.ready;
+    if (L.verdict === 'think') title = running ? 'ON PURPOSE.' : 'TEN MINUTES.|ON PURPOSE.';
+    // SPEEDRUN counts up against the record. THE BOSS has health that drains while you're at it.
+    const clock = speed ? C.fmtClock(running ? Math.floor(elapsedNow(L)) : 0) : C.fmtClock(running ? remaining(L) : L.dur);
+    const ghost = rec ? `<p class="ghost-record" id="ghost">${fill(RULES.speedrun.ghost, { record: rec })}</p>` : '';
+    const hp = L.rule === 'boss' ? `<div class="boss-hp"><span>${RULES.boss.hp}</span><b><i id="hp" style="width:${hpLeft(L)}%"></i></b></div>` : '';
     return {
-      tone: L.theme || 'sun',
+      tone: L.rule === 'boss' ? '' : L.theme || 'sun',
       html: step({
-        title: L.verdict === 'think' ? (running ? 'ON PURPOSE.' : 'TEN MINUTES.|ON PURPOSE.') : running ? 'NOT A THOUGHT.' : 'NOTHING TO DECIDE.',
+        title,
+        eyebrow: ruleTag(L),
         progress: PROGRESS.timer,
         back: !running,
         center: true,
-        body: `<div class="timer-brain ${running ? 'bob' : ''}">${brainSVG(S.w ?? 60, 'tiny')}</div>
-          <div class="clock" id="clock" role="timer">${C.fmtClock(running ? remaining(L) : L.dur)}</div>
+        body: `${hp}<div class="timer-brain ${running ? 'bob' : ''}">${brainSVG(S.w ?? 60, 'tiny')}</div>
+          <div class="clock" id="clock" role="timer">${clock}</div>
+          ${ghost}
           ${running ? `<p class="hype in" id="hype">${esc(L.hype || '')}</p>` : ''}
           <p class="plan">${esc(L.move || L.thing)}</p>
           ${L.draft && !C.hasBlanks(L.draft) ? `<div class="draft-mini"><p>${esc(L.draft)}</p><button class="link" data-a="draft-copy">Copy it again</button></div>` : ''}
@@ -1037,6 +1127,28 @@ const STEPS = {
       body: `<div class="choices">${DREAD.map((d, i) => `<button class="choice" data-a="reality" data-v="${i}">${d.toUpperCase()}</button>`).join('')}</div>`,
     }),
   }),
+
+  // THE APP PICKS: a sealed envelope instead of a text box. One re-roll.
+  pick: (L) => {
+    const R = RULES.pick;
+    const open = !!L.picked;
+    const reroll = L.rerolled ? `<p class="sub center-text">${R.rerolled}</p>` : `<button class="link" data-a="pick-reroll">${R.reroll}</button>`;
+    return {
+      tone: 'blue',
+      html: step({
+        title: R.title,
+        eyebrow: ruleTag(L),
+        max: 110,
+        progress: PROGRESS.thing,
+        center: true,
+        body: open
+          ? `<div class="envelope open"><span class="eyebrow">${R.picked}</span><strong>${esc(L.thing)}</strong></div>`
+          : `<button class="envelope" data-a="pick-open"><span>${R.sealed}</span></button>`,
+        foot: `${open ? `<button class="btn mega" data-a="pick-deal">${R.deal}</button>${reroll}` : ''}
+          <button class="link" data-a="pick-own">${R.own}</button>`,
+      }),
+    };
+  },
 };
 
 VIEWS.loop = () => {
@@ -1062,6 +1174,9 @@ VIEWS.loop.after = () => {
 function remaining(L) {
   return L.dur - (Date.now() - L.startedAt) / 1000;
 }
+const elapsedNow = (L) => Math.max(0, (Date.now() - L.startedAt) / 1000);
+// The boss loses up to 60% of its health to the clock. The rest only goes when you hit DONE.
+const hpLeft = (L) => (L.startedAt ? Math.round(100 - Math.min(1, elapsedNow(L) / L.dur) * 60) : 100);
 
 function startTick() {
   const clock = document.getElementById('clock');
@@ -1079,18 +1194,29 @@ function startTick() {
   if (hype && !S.active.hype) nextHype();
   let hypeAt = Date.now();
   let lastCount = null;
+  const ghost = document.getElementById('ghost');
+  const hp = document.getElementById('hp');
+  const record = S.active.rule === 'speedrun' ? C.speedRecord(S.receipts) : null;
+  // ONE MINUTE ticks for the last ten seconds, everything else for the last five.
+  const tickFrom = S.active.rule === 'minute' ? 10 : 5;
   const tick = () => {
     if (!S.active) return;
     const left = remaining(S.active);
-    if (clock) clock.textContent = C.fmtClock(left);
+    const gone = elapsedNow(S.active);
+    if (clock) clock.textContent = S.active.rule === 'speedrun' ? C.fmtClock(Math.floor(gone)) : C.fmtClock(left);
+    if (ghost && record != null && gone > record && !ghost.classList.contains('past')) {
+      ghost.classList.add('past');
+      ghost.textContent = RULES.speedrun.past;
+    }
+    if (hp) hp.style.width = `${hpLeft(S.active)}%`;
     if (Date.now() - hypeAt > 15000) {
       hypeAt = Date.now();
       nextHype();
     }
     const sec = Math.ceil(left);
-    if (left > 0 && sec <= 5 && sec !== lastCount) {
+    if (left > 0 && sec <= tickFrom && sec !== lastCount) {
       lastCount = sec;
-      sfx.tick(1 + (5 - sec) * 0.12);
+      sfx.tick(1 + (tickFrom - sec) * (0.6 / tickFrom));
     }
     if (left <= 0 && !rang) {
       rang = true;
@@ -1145,8 +1271,16 @@ function finishLoop() {
     fu: C.followUpFor(L),
     draft: L.draft || null,
     closer: fresh('closer', CLOSERS).item,
+    rule: L.rule || null,
+    round: L.rule ? L.round || 1 : null,
   };
+  // Today's rule: what this round earned, the stamp it leaves on the receipt, and any bonus.
+  const result = C.ruleResult(receipt, S.receipts, { think: L.verdict === 'think' });
+  if (result?.stamp) receipt.stamp = result.stamp;
+  const bonus = result?.bonus || 0;
+  const ruleView = result ? { ...result, id: L.rule, n: C.dayOfShowingUp(S.receipts, today) } : null;
   const line = closeLine(receipt, {
+    lies: C.trialCase([receipt, ...S.receipts]).lies,
     capped: credit && !credit.counts ? credit.n : 0,
     firstEver,
     streak: S.streak,
@@ -1157,7 +1291,7 @@ function finishLoop() {
   });
   S.receipts.unshift(receipt);
   S.w = after;
-  S.wis += wisDelta;
+  S.wis += wisDelta + bonus;
   S.active = null;
   save();
   const daysAfter = days();
@@ -1182,7 +1316,7 @@ function finishLoop() {
   save();
   refreshNudges();
   const flash = receipt.legendary ? 'sun' : fresh('flash', FLASHES).item;
-  go('close', { receipt, before, after, wisDelta, showThing: false, fresh: true, line, unlocked, forgiven, drip, flash, firstEver });
+  go('close', { receipt, before, after, wisDelta: wisDelta + bonus, showThing: false, fresh: true, line, unlocked, forgiven, drip, flash, firstEver, rule: ruleView });
 }
 
 // ---------- close and receipts ----------
@@ -1205,6 +1339,7 @@ function receiptHTML(r, showThing) {
   return `<div class="receipt-wrap"><div class="receipt ${r.legendary ? 'gold' : `skin-${skinOf().id}`}">
     <p class="r-title">${wordmark()}</p>
     <p class="r-sub">RECEIPT #${r.n ?? r.day}${r.at ? ` · ${receiptDate(r.at)}` : ''}${r.legendary ? ' ★ LEGENDARY' : ''}</p>
+    ${r.stamp ? `<p class="r-stamp">${esc(r.stamp)}</p>` : ''}
     <div class="r-rows"><dl>${rows.map(([k, v]) => `<div class="r-row"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></div>
     <p class="r-big">${bigText}</p>
     <p class="r-label">${label}</p>
@@ -1219,7 +1354,11 @@ function closeLine(r, ctx) {
   if (r.outcome === 'bailed') return fresh('bail', BAIL_LINES).item;
   if (r.reality === 3) return 'Okay. That one was bad. If it’s actually serious, talk to somebody who can help.';
   if (r.reality === 2) return 'That happens. Now you know something. Move on.';
-  if (r.dread != null && r.reality < r.dread) return `You said ${DREAD[r.dread]}. It was ${DREAD[r.reality]}. Your brain is a liar.`;
+  // Caught lying: the line climbs with the count, so lie number 5 doesn't read like lie number 1.
+  if (r.dread != null && r.reality < r.dread) {
+    const n = Math.max(1, ctx.lies || 1);
+    return fill(LIAR_LINES[C.liarIndex(n, LIAR_LINES.length)], { said: DREAD[r.dread], was: DREAD[r.reality], n });
+  }
   // A one-way door handled the right way gets a straight line, not a joke about speed.
   if (ctx.think) return 'A question, a date, a person who knows. That’s how a big one gets handled. The brain can clock out.';
   if (ctx.capped) return `That’s ${ctx.capped} today. The brain only smooths ${C.DAILY_CREDIT} a day. It’s a brain, not a microwave.`;
@@ -1258,11 +1397,13 @@ VIEWS.close = () => {
   const intDelta = C.intOf(before) - C.intOf(after);
   const bailed = r.outcome === 'bailed';
   const stats = bailed ? 'NO PENALTY' : [intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join(' · ');
-  const levelLines = bailed ? 'NO|PENALTY.' : [r.legendary ? 'LEGENDARY' : '', intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join('|');
+  const levelLines = bailed ? 'NO|PENALTY.' : [view.rule?.head || '', r.legendary ? 'LEGENDARY' : '', intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join('|');
   const overlay = fresh ? `<div class="levelup ${bailed ? 'sad' : `f-${flash || 'sun'}`}" id="levelup" data-a="skip-level">${big(levelLines, { max: 190, slam: true, center: true })}</div>` : '';
-  // The cliffhanger: brain court is tomorrow.
+  // The cliffhanger: brain court is tomorrow. Otherwise, once today's rule is done (or there isn't one), tomorrow's rule.
   const ahead = trialAhead();
   const court = ahead?.how === 'soon' ? ahead : null;
+  const now = ruleNow();
+  const ruleNext = !court && (!now || now.done) ? ruleTomorrow() : null;
   return {
     html: `<main class="screen close">
       <div class="close-head">
@@ -1275,11 +1416,13 @@ VIEWS.close = () => {
       ${r.legendary ? '<p class="legend-tag">★ LEGENDARY RECEIPT ★</p>' : ''}
       <p class="close-line">${esc(line || '')}</p>
       ${forgiven ? '<p class="forgiven">You skipped yesterday. Streak kept. A day off is a day off.</p>' : ''}
+      ${view.rule ? ruleResultHTML(view.rule, r) : ''}
       ${drip ? dripCard(drip, after) : ''}
       ${credMove(r)}
       ${court ? `<div class="court-soon"><b>${fill(TRIAL.soonTitle, { name: TRIAL.levels[court.day].name })}</b><span>${TRIAL.levels[court.day].soon}</span></div>` : ''}
-      ${(view.firstEver || r.fu || court) && canNudge() && !S.nudge && !view.nudgeAsked ? `<div class="nudge-card">
-        <b>${court ? TRIAL.offer : r.fu ? FOLLOW_UP.offer[r.fu.type] : 'WANT A NUDGE TOMORROW?'}</b>
+      ${ruleNext ? `<div class="court-soon rule-soon t-${ruleNext}">${ruleSoon(ruleNext)}</div>` : ''}
+      ${(view.firstEver || r.fu || court || ruleNext) && canNudge() && !S.nudge && !view.nudgeAsked ? `<div class="nudge-card">
+        <b>${court ? TRIAL.offer : r.fu ? FOLLOW_UP.offer[r.fu.type] : ruleNext ? fill(RULES.offer, { name: RULES[ruleNext].name }) : 'WANT A NUDGE TOMORROW?'}</b>
         <span>${r.fu ? FOLLOW_UP.offer.sub : 'One a day. Skipped if you’ve already done something.'}</span>
         <div class="chips">${[[15, 30, 'AFTER SCHOOL'], [18, 0, '6 PM'], [21, 0, '9 PM']].map(([h, m, label]) => `<button class="chip" data-a="nudge" data-h="${h}" data-m="${m}">${label}</button>`).join('')}<button class="chip" data-a="nudge" data-h="">NAH</button></div>
       </div>` : ''}
@@ -1294,6 +1437,28 @@ VIEWS.close = () => {
     </main>${overlay}`,
   };
 };
+
+// What today's rule made of this round. Round 1 of BACK TO BACK gets the button for round 2.
+function ruleResultHTML(rr, r) {
+  const R = RULES[rr.id];
+  let ln = R?.lines?.[rr.kind];
+  if (!ln) return '';
+  if (rr.id === 'boss' && rr.kind === 'win' && !r.thoughtMin) ln = R.lines.winNoTime;
+  const o = {
+    time: C.fmtClock(r.doneSec || 0),
+    old: rr.record != null ? C.fmtClock(rr.record) : '',
+    did: C.fmtDid(r.doneSec || 0),
+    dodged: r.thoughtMin ? C.fmtDuration(r.thoughtMin) : '',
+  };
+  const sub = fill(ln.sub, o);
+  const more = rr.id === 'double' && rr.kind === 'round' ? `<button class="btn" data-a="start">${R.next}</button>` : '';
+  return `<div class="rule-result t-${rr.id}">
+    <span class="eyebrow">DAY ${rr.n} · ${R.name}</span>
+    <strong>${esc(fill(ln.title, o))}</strong>
+    <span>${esc(sub.charAt(0).toUpperCase() + sub.slice(1))}</span>
+    ${more}
+  </div>`;
+}
 
 // After the first hearing, every checked guess moves the brain's credibility, and the receipt says by how much.
 function credMove(r) {
@@ -1835,6 +2000,9 @@ function refreshNudges() {
   if (!canNudge() || !S.nudge) return Promise.resolve(false);
   const times = C.nudgeTimes({ hour: S.nudge.h, minute: S.nudge.m || 0, doneToday: S.lastDay === C.dateKey() });
   const lines = C.shuffled(NUDGE_LINES).map((l) => C.addr(l, S.who));
+  // The day's rule, by name only.
+  const rule = times[0] && C.ruleOn(S.receipts, C.dateKey(times[0]));
+  if (rule && RULES[rule]) lines.unshift(fill(RULES.nudge, { name: RULES[rule].name, tease: RULES[rule].tease }));
   // A follow-up that will be due goes out first. Lock screens are public, so never the thing or a name.
   const fu = C.followUpDue(S.receipts, C.dateKey(new Date(Date.now() + 86400000)));
   if (fu) lines.unshift(FOLLOW_UP.nudge[fu.fu.type]);
@@ -1923,6 +2091,8 @@ function suggestFor(L) {
   // After MAKE IT STUPID SMALL, a smaller version, not the same step.
   if (L.verdict === 'shrink') return MOVE_SUGGESTIONS[L.draftKind ? 'shrinkDraft' : 'shrink'];
   const kind = L.draftKind === 'family' && /\bcall/.test(L.thing.toLowerCase()) ? 'call' : C.suggestKind(L.thing, L.draftKind);
+  // ONE MINUTE: the same kind of step, cut to what fits in 60 seconds.
+  if (L.rule === 'minute') return RULES.minute.moves[kind] || RULES.minute.moves.default;
   const m = MOVE_SUGGESTIONS[kind];
   return Array.isArray(m) ? fresh(`move-${kind}`, m).item : m;
 }
@@ -1931,7 +2101,7 @@ function startDraftClock(copied) {
   const L = S.active;
   if (!L || L.step !== 'draft') return;
   L.move = 'Send it.';
-  L.dur = 120;
+  L.dur = L.rule === 'minute' ? 60 : 120;
   L.startedAt = Date.now();
   buzz(30);
   sfx.windup();
@@ -1972,7 +2142,46 @@ const ACTIONS = {
   start: () => {
     shake();
     buzz(30);
-    startLoop({});
+    startLoop(ruleRound());
+  },
+  'pick-open': () => {
+    const L = S.active;
+    if (!L || L.picked) return undefined;
+    L.thing = fresh('dare', darePool()).item;
+    L.move = L.thing;
+    L.picked = true;
+    save();
+    shake();
+    buzz(40);
+    sfx.unlock();
+    return go('loop');
+  },
+  'pick-reroll': () => {
+    const L = S.active;
+    if (!L?.picked || L.rerolled) return undefined;
+    const pool = darePool().filter((m) => m !== L.thing);
+    L.thing = fresh('dare', pool.length ? pool : darePool()).item;
+    L.move = L.thing;
+    L.rerolled = true;
+    save();
+    buzz(20);
+    return go('loop');
+  },
+  'pick-deal': () => {
+    const L = S.active;
+    if (!L?.picked) return undefined;
+    L.verdict = 'send';
+    L.draftKind = C.detectDraftKind(L.move);
+    L.dur = 120;
+    return loopTo('fast');
+  },
+  // Their own thing instead: an ordinary round, and the rule waits for the next one.
+  'pick-own': () => {
+    const L = S.active;
+    if (!L) return undefined;
+    Object.assign(L, { rule: null, round: null, picked: false, rerolled: false, thing: '', move: '', step: 'thing', trail: [] });
+    save();
+    return go('loop');
   },
   'start-door': () => startLoop({ full: true }),
   daily: () => prefilled(dailyMove(C.dateKey()), 'daily'),
@@ -2073,7 +2282,8 @@ const ACTIONS = {
     }
     L.kind = null;
     L.forced = false;
-    if (L.full) return loopTo('howlong');
+    // THE BOSS asks how long it's been sitting there first: that's its health.
+    if (L.full || L.rule === 'boss') return loopTo('howlong');
     L.verdict = 'send';
     L.move = suggestFor(L);
     return loopTo('fast');
@@ -2086,6 +2296,11 @@ const ACTIONS = {
     const L = S.active;
     L.thoughtMin = Number(d.m);
     if (L.forced) return loopTo('verdict');
+    if (L.rule === 'boss' && !L.full) {
+      L.verdict = 'send';
+      L.move = suggestFor(L);
+      return loopTo('fast');
+    }
     L.doorI = 0;
     L.answers = {};
     return loopTo('door');
