@@ -186,6 +186,13 @@ export const DRAFTS = [
     'ok random but do u wanna hang out this week',
     'we should get food sometime. thursday?',
   ] },
+  { id: 'makeup', label: 'WE GOOD?', subject: 'We good?', variants: [
+    'Hey {name}, nah, we’re good. My bad about last week. You around [tonight]?',
+    'Hey {name}, I’m not mad. I was annoyed about [the thing], but we’re good.',
+  ], casual: [
+    'nah we good. my bad about last week. u on tonight?',
+    'we good fr. [the thing] was dumb. u around later?',
+  ] },
   { id: 'apology', label: 'APOLOGIZE', subject: 'I’m sorry', variants: [
     'Hey {name}, I’ve been thinking about what happened. I’m sorry. You didn’t deserve that.',
     'Hey {name}, I owe you an apology. I got that wrong, and I’m sorry. No excuses.',
@@ -217,6 +224,10 @@ export const DRAFTS = [
   ], casual: [
     'hey coach, can i talk to you after practice for a sec? want to know what to work on',
   ] },
+  { id: 'missed', label: 'MISSED CLASS', subject: 'Missed [quiz] in [class]', variants: [
+    'Hi Professor {name}, I missed the [quiz] in [class] on [day]. Is there any way to make it up? I can come to office hours.',
+    'Hi Professor {name}, I’m sorry I missed class on [day]. Could you tell me what I missed, or is it in the slides?',
+  ] },
   { id: 'prof', label: 'EMAIL A PROFESSOR', subject: 'Question about [class]', variants: [
     'Hi Professor {name}, I’m in your [class] section. I’m behind on [assignment] and wanted to ask for an extension to [day]. I can have it to you by then. Thank you for considering it.',
     'Hi Professor {name}, I’m stuck on [topic] from [class]. Could I come to office hours [day/time], or is there a better time?',
@@ -225,6 +236,13 @@ export const DRAFTS = [
   { id: 'rec', label: 'ASK FOR A REC LETTER', subject: 'Recommendation request', variants: [
     'Hi {name}, I’m applying to [colleges or program], and you know my work better than anyone. Would you be willing to write me a recommendation? It’s due [date]. I can send my resume and anything else that helps. Thank you!',
     'Hi Professor {name}, I took your [class] in [semester] and really liked it. I’m applying to [program or job], and I’d be grateful if you’d write me a recommendation. It’s due [date]. I can send my resume and anything else that helps. Totally understand if you can’t.',
+  ] },
+  { id: 'cover', label: 'COVER A SHIFT', subject: 'Covering [day]', variants: [
+    'Hi {name}, yes, I can cover [day]. Sorry for the slow reply. What time?',
+    'Hi {name}, I can’t cover [day], sorry. I could do [another day] if that helps.',
+  ], casual: [
+    'yeah i can cover [day], sorry just saw this. what time?',
+    'can’t do [day] sorry. i could do [another day] tho',
   ] },
   { id: 'shift', label: 'WORK SCHEDULE', subject: 'Schedule request', variants: [
     'Hi {name}, could I come off [day] shifts for the next [few weeks]? I have [reason]. Happy to pick up [another shift] instead.',
@@ -527,6 +545,15 @@ export const DARES = [
 ];
 
 // Shown while the clock runs, one at a time.
+// The timer on a one-way door: the one time the brain is on the clock, so not "head empty".
+export const THINK_TIMER_LINES = [
+  'This one gets the brain. Ten minutes, then it clocks out.',
+  'Write the question down. Then a date. Then a name.',
+  'Thinking on purpose. Not spiraling. Different thing.',
+  'Who would know? Write their name.',
+  'A date to decide by. That’s it. Not the decision.',
+];
+
 export const TIMER_LINES = [
   'Thoughts: zero. Keep it there.',
   'You’re doing it. That’s the whole thing.',
@@ -794,6 +821,9 @@ export const BOLD_DRAFTS = {
   family: ['Hi! I’ve been dodging calls because this week was a lot. I’m calling you [day] at [time].'],
   coach: ['Coach {name}, I want more minutes. What do I need to show you this week?'],
   shift: ['Hi {name}, I can’t work [day] for the next [few weeks] because of [reason]. I can cover [another shift] instead.'],
+  cover: ['Hi {name}, I’ve got [day]. What time do you need me?', 'Hi {name}, I can’t do [day]. I can do [another day].'],
+  missed: ['Hi Professor {name}, I missed the [quiz] on [day]. I’d like to make it up. When works for you?'],
+  makeup: ['Hey {name}, we’re good. I was annoyed, it’s done. [Tonight]?'],
   recruiter: ['Hi {name}, I’m interested. I’m free [time 1] or [time 2]. What’s the pay range for this role?'],
   meeting: ['Hi {name}, I’d like 20 minutes this week to talk about [topic]. Does [day] work?'],
   followup: ['Hi {name}, bumping this back to the top of your inbox. What’s the next step?'],
@@ -877,7 +907,20 @@ export const FOLLOW_UP = {
     did: 'I DID IT ANYWAY',
     skip: 'NOT TODAY',
   },
+  plan: {
+    eyebrow: 'YOU PUT THE BRAIN ON IT',
+    title: 'DID IT GET A DATE?',
+    choices: [['date', 'IT HAS A DATE'], ['asked', 'I ASKED SOMEBODY'], ['wait', 'NOT YET'], ['drop', 'LETTING IT GO']],
+  },
   answers: {
+    date: [
+      { a: 'IT HAS|A DATE.', sub: 'That’s the whole job for now. The brain can clock out until then.' },
+      { a: 'ON THE|CALENDAR.', sub: 'A date beats a dread. The brain goes back to sleep.' },
+    ],
+    asked: [
+      { a: 'YOU|ASKED.', sub: 'Somebody who knows now knows. That’s the move on a big one.' },
+      { a: 'NOT ALONE|ON THIS ONE|ANYMORE.', sub: 'Asking is the step. Next one: a date.' },
+    ],
     fine: [
       { a: 'IT WAS|FINE.|OBVIOUSLY.', sub: 'All that thinking. One message.' },
       { a: 'FINE.|AGAIN.|SHOCKING.', sub: 'The brain is 0 for everything on this one.' },
@@ -898,10 +941,11 @@ export const FOLLOW_UP = {
   },
   wait: 'Okay. We’ll ask again tomorrow.',
   skip: 'No penalty. It’ll still be there when you are.',
+  drop: 'Deciding not to is a decision. No penalty.',
   // The reminder that goes out on the next day. Never the thing or a name: lock screens are public.
-  nudge: { reply: 'Did they answer? The brain needs to know.', retry: 'Round 2 is one button. You know the one.' },
+  nudge: { reply: 'Did they answer? The brain needs to know.', retry: 'Round 2 is one button. You know the one.', plan: 'The big one. Did it get a date?' },
   // Asked on the receipt, when there's something to follow up.
-  offer: { reply: 'WANT THE VERDICT?', retry: 'ROUND 2 TOMORROW?', sub: 'One nudge a day. Skipped if you’ve already done something.' },
+  offer: { reply: 'WANT THE VERDICT?', retry: 'ROUND 2 TOMORROW?', plan: 'CHECK ON IT IN A DAY OR TWO?', sub: 'One nudge a day. Skipped if you’ve already done something.' },
 };
 
 // ---------- brain court ----------

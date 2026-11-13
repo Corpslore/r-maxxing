@@ -321,13 +321,14 @@ export function renderReceiptCard(r, showThing, skin = null) {
   else rows.push(['THE THING', '', { redacted: true }]);
   if (r.thoughtMin) rows.push(['OVERTHOUGHT', fmtDuration(r.thoughtMin).toUpperCase()]);
   const bailed = r.outcome === 'bailed';
-  rows.push(['DID IT IN', bailed ? 'NOT TODAY' : fmtDid(r.doneSec).toUpperCase()]);
+  const kinda = r.outcome === 'some';
+  rows.push(['DID IT IN', bailed ? 'NOT TODAY' : `${kinda ? 'KINDA. ' : ''}${fmtDid(r.doneSec).toUpperCase()}`]);
   if (r.dread != null) rows.push(['YOU SAID', DREAD[r.dread].toUpperCase()]);
   if (r.reality != null) rows.push(['IT WAS', DREAD[r.reality].toUpperCase()]);
   rows.push(['THOUGHTS', bailed ? 'MANY' : '0']);
   const x = bailed ? null : ratio(r.thoughtMin, r.doneSec);
   const big = bailed ? 'CHICKENED OUT' : x ? fmtRatio(x) : 'DONE';
-  const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? 'THINKING TO DOING' : 'THAT’S THE WHOLE THING';
+  const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? (kinda ? 'THINKING TO KINDA DOING' : 'THINKING TO DOING') : kinda ? 'KINDA COUNTS' : 'THAT’S THE WHOLE THING';
   return receiptFrame(`RECEIPT #${r.n ?? r.day}   ${stamp(r.at)}`, rows, big, label, { gold: !!r.legendary, skin, closer: r.closer || CLOSER });
 }
 

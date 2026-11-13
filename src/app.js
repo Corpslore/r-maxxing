@@ -5,7 +5,7 @@ import {
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
-  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
@@ -454,6 +454,14 @@ function followUpCard() {
       <div class="fu-choices">${FOLLOW_UP.reply.choices.map(([v, label]) => `<button class="chip" data-a="fu-answer" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>
     </div>`;
   }
+  if (r.fu.type === 'plan') {
+    return `<div class="fu-card">
+      <p class="eyebrow">${ago} ${FOLLOW_UP.plan.eyebrow}</p>
+      <strong>${FOLLOW_UP.plan.title}</strong>
+      <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}</button>
+      <div class="fu-choices">${FOLLOW_UP.plan.choices.map(([v, label]) => `<button class="chip" data-a="fu-answer" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>
+    </div>`;
+  }
   return `<div class="fu-card">
     <p class="eyebrow">${ago} ${FOLLOW_UP.retry.eyebrow}</p>
     <strong>${FOLLOW_UP.retry.title}</strong>
@@ -467,7 +475,9 @@ function followUpCard() {
 }
 
 // The answer, big, and shareable without the name in it.
-const verdictQ = (r, named) => (r.fu?.result === 'did' ? 'Remember the thing I chickened out of?' : `Did ${named && r.to ? r.to : 'they'} answer?`);
+const verdictQ = (r, named) => (r.fu?.result === 'did' ? 'Remember the thing I chickened out of?'
+  : r.fu?.type === 'plan' ? 'Did the big one get a date?'
+    : `Did ${named && r.to ? r.to : 'they'} answer?`);
 const verdictLine = (r) => {
   const list = FOLLOW_UP.answers[r.fu.result] || FOLLOW_UP.answers.fine;
   return list[(r.fu.line || 0) % list.length];
@@ -481,7 +491,7 @@ VIEWS.verdict = () => {
   const lied = res === 'fine' && r.dread != null && r.dread >= 1;
   const sub = lied ? `You said ${DREAD[r.dread]}. It was fine. Your brain lied again.` : ans.sub;
   return {
-    tone: { fine: 'lime', weird: 'pink', read: 'blue', did: 'orange' }[res] || 'lime',
+    tone: { fine: 'lime', weird: 'pink', read: 'blue', did: 'orange', date: 'blue', asked: 'lime' }[res] || 'lime',
     html: step({
       title: ans.a,
       max: 170,
@@ -967,6 +977,7 @@ const STEPS = {
             <button class="link" data-a="draft-another">↻ Another one</button>
             ${kind.casual ? `<button class="link ${L.draftCasual ? 'on' : ''}" data-a="draft-casual" aria-pressed="${!!L.draftCasual}">${L.draftCasual ? 'Type it properly' : 'Text it like a text'}</button>` : ''}
             <button class="link" data-a="draft-calm">Calm it down</button>
+            <button class="link" data-a="draft-clear">Write my own</button>
             ${sellsPro() ? `<button class="link bold-link ${L.draftBold && S.pro ? 'on' : ''}" data-a="draft-bold" aria-pressed="${!!(L.draftBold && S.pro)}">${L.draftBold && S.pro ? 'Back to normal' : `Say it bold${S.pro ? '' : ' · PRO'}`}</button>` : ''}
           </div>
           <p class="draft-note" id="blank-note" ${C.hasBlanks(text) ? '' : 'hidden'}>Fill in the [brackets] before you send it.</p>
@@ -985,7 +996,7 @@ const STEPS = {
     return {
       tone: L.theme || 'sun',
       html: step({
-        title: running ? 'NOT A THOUGHT.' : 'NOTHING TO DECIDE.',
+        title: L.verdict === 'think' ? (running ? 'ON PURPOSE.' : 'TEN MINUTES.|ON PURPOSE.') : running ? 'NOT A THOUGHT.' : 'NOTHING TO DECIDE.',
         progress: PROGRESS.timer,
         back: !running,
         center: true,
@@ -1059,7 +1070,7 @@ function startTick() {
   const hype = document.getElementById('hype');
   const nextHype = () => {
     if (!hype || !S.active) return;
-    S.active.hype = fresh('timer', TIMER_LINES).item;
+    S.active.hype = S.active.verdict === 'think' ? fresh('timer-think', THINK_TIMER_LINES).item : fresh('timer', TIMER_LINES).item;
     hype.textContent = C.addr(S.active.hype, S.who);
     hype.classList.remove('in');
     void hype.offsetWidth;
@@ -1142,6 +1153,7 @@ function finishLoop() {
     streakUp: S.streak > prevStreak,
     gapDays: prevDay ? C.dayDiff(prevDay, today) : null,
     source: L.source,
+    think: L.verdict === 'think',
   });
   S.receipts.unshift(receipt);
   S.w = after;
@@ -1182,13 +1194,14 @@ function receiptHTML(r, showThing) {
   rows.push(['The thing', showThing ? esc(r.thing) : '<span class="redact" aria-label="Hidden"></span>']);
   if (r.thoughtMin) rows.push(['Overthought', C.fmtDuration(r.thoughtMin)]);
   const bailed = r.outcome === 'bailed';
-  rows.push(['Did it in', bailed ? 'Not today' : C.fmtDid(r.doneSec)]);
+  const kinda = r.outcome === 'some';
+  rows.push(['Did it in', bailed ? 'Not today' : `${kinda ? 'Kinda. ' : ''}${C.fmtDid(r.doneSec)}`]);
   if (r.dread != null) rows.push(['You said', DREAD[r.dread]]);
   if (r.reality != null) rows.push(['It was', DREAD[r.reality]]);
   rows.push(['Thoughts', bailed ? 'Many' : '0']);
   const x = bailed ? null : C.ratio(r.thoughtMin, r.doneSec);
   const bigText = bailed ? 'CHICKENED OUT' : x ? C.fmtRatio(x) : 'DONE';
-  const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? 'THINKING TO DOING' : 'THAT’S THE WHOLE THING';
+  const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? (kinda ? 'THINKING TO KINDA DOING' : 'THINKING TO DOING') : kinda ? 'KINDA COUNTS' : 'THAT’S THE WHOLE THING';
   return `<div class="receipt-wrap"><div class="receipt ${r.legendary ? 'gold' : `skin-${skinOf().id}`}">
     <p class="r-title">${wordmark()}</p>
     <p class="r-sub">RECEIPT #${r.n ?? r.day}${r.at ? ` · ${receiptDate(r.at)}` : ''}${r.legendary ? ' ★ LEGENDARY' : ''}</p>
@@ -1207,6 +1220,8 @@ function closeLine(r, ctx) {
   if (r.reality === 3) return 'Okay. That one was bad. If it’s actually serious, talk to somebody who can help.';
   if (r.reality === 2) return 'That happens. Now you know something. Move on.';
   if (r.dread != null && r.reality < r.dread) return `You said ${DREAD[r.dread]}. It was ${DREAD[r.reality]}. Your brain is a liar.`;
+  // A one-way door handled the right way gets a straight line, not a joke about speed.
+  if (ctx.think) return 'A question, a date, a person who knows. That’s how a big one gets handled. The brain can clock out.';
   if (ctx.capped) return `That’s ${ctx.capped} today. The brain only smooths ${C.DAILY_CREDIT} a day. It’s a brain, not a microwave.`;
   if (r.doneSec != null && r.doneSec < 10) return 'Under 10 seconds. Either you’re a legend or you didn’t do it. We’ll never know.';
   if (Math.random() < C.LEGENDARY_ODDS) {
@@ -1380,7 +1395,7 @@ VIEWS.receipts = () => {
       <ul class="log">${S.receipts.map((r) => `<li><button class="log-item" data-a="open-receipt" data-id="${r.id}">
         <strong>${r.legendary ? '<span class="star" aria-label="Legendary">★</span> ' : ''}${esc(r.thing)}</strong>
         <span>${new Date(r.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-        <em>${r.outcome === 'bailed' ? 'chickened out' : C.fmtDid(r.doneSec)}</em>
+        <em>${r.outcome === 'bailed' ? 'chickened out' : `${r.outcome === 'some' ? 'kinda · ' : ''}${C.fmtDid(r.doneSec)}`}</em>
       </button></li>`).join('')}</ul>`),
   };
 };
@@ -2157,6 +2172,15 @@ const ACTIONS = {
     save();
     go('loop');
   },
+  'draft-clear': () => {
+    const L = S.active;
+    if (!L) return undefined;
+    L.draft = '';
+    L.draftEdited = true;
+    save();
+    render();
+    return document.getElementById('draft')?.focus();
+  },
   'draft-another': () => {
     const L = S.active;
     if (L.draftEdited && Date.now() - (L.anotherArmed || 0) > 4000) {
@@ -2350,12 +2374,12 @@ const ACTIONS = {
       render();
       return toast(FOLLOW_UP.wait);
     }
-    if (d.v === 'skip') {
+    if (d.v === 'skip' || d.v === 'drop') {
       r.fu.state = 'skipped';
       save();
       refreshNudges();
       render();
-      return toast(FOLLOW_UP.skip);
+      return toast(d.v === 'drop' ? FOLLOW_UP.drop : FOLLOW_UP.skip);
     }
     r.fu.state = 'done';
     r.fu.result = d.v;

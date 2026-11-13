@@ -318,6 +318,8 @@ export function detectOneWay(text) {
 // specific ones (professor, landlord) come before the general ones (reply, plans).
 const DRAFT_PATTERNS = [
   ['rec', /\b(?:rec(?:ommendation)?\s+letter|letter\s+of\s+rec\w*|references?\s+letter)\b/],
+  // Missed a quiz or class: a make-up ask, not an extension.
+  ['missed', /\b(?:missed|skipped)\b[^.]*\b(?:quiz(?:zes)?|tests?|exams?|class(?:es)?|lectures?|labs?|midterms?)\b|\b(?:quiz(?:zes)?|tests?|exams?|class(?:es)?|lectures?|labs?|midterms?)\b[^.]*\b(?:missed|skipped)\b|\bmake[\s-]?up (?:quiz|test|exam|work)\b/],
   ['prof', /\b(?:professor|prof|my\s+ta|instructor|office\s+hours|extension|my\s+grade|syllabus)\b/],
   ['recruiter', /\brecruiter\b/],
   ['job', /\b(?:internship|job\s+application|application\s+status|the\s+interview|hiring\s+manager)\b/],
@@ -327,11 +329,15 @@ const DRAFT_PATTERNS = [
   ['reacted', /\b(?:replied|reacted|responded|commented)\b[^.]*\bmy\s+(?:story|post|pic|reel|tiktok|snap)\b/],
   ['story', /\b(?:(?:her|his|their|a)\s+story|stor(?:y|ies)\s+repl\w*)\b/],
   ['askout', /\b(?:ask(?:ing)?\s+(?:\w+\s+)?out|on a date|go(?:ing)? out with)\b/],
+  // After a fight: "u still mad?", "are we good". Making up, which isn't the same as apologizing.
+  ['makeup', /\b(?:still mad|mad at (?:me|him|her|them|each other)|are we good|we(?:'re| are)? good\b|after (?:the|our|that) (?:fight|argument)|(?:had|got into) (?:a|an) (?:fight|argument))/],
   ['apology', /\b(?:apolog\w*|say(?:ing)? sorry|make (?:it|things) right)\b/],
   ['decline', /\b(?:say(?:ing)? no|declin\w*|back(?:ing)? out|turn(?:ing)? (?:it |them |him |her )?down|bail(?:ing)? on|cancel(?:l?ing)? (?:on|plans|our plans|my plans))\b/],
   ['refund', /\b(?:refund\w*|money back|return(?:ing)? (?:it|this|the))\b/],
   ['followup', /\b(?:follow(?:ing)?[\s-]?up|haven't heard|check(?:ing)? in on|chas(?:e|ing) (?:up|them|him|her))\b/],
   ['coach', /\bcoach\b/],
+  // Being asked to cover: usually a yes, sometimes a no. Asking someone to cover FOR you stays a shift ask.
+  ['cover', /\b(?:cover(?:ing)?|pick(?:ing)? up)\s+(?:(?:the|a|an|his|her|their|that|this|my|your)\s+)?(?:shifts?|sat(?:urday)?|sun(?:day)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?|fri(?:day)?|tonight|tomorrow|close|open)\b|\bcan (?:u|you|i) cover\b/],
   ['shift', /^(?=.*\b(?:shifts?|schedule|clos(?:e|es|ing)|opens|opening shifts?|time off|days? off|(?:mon|tues|wednes|thurs|fri|satur|sun)days? off|take me off|hours|cover for)\b)(?=.*\b(?:manager|boss|supervisor|work|job|shift lead)\b)/],
   ['meeting', /\b(?:meeting|1:1|one[\s-]on[\s-]one|boss|manager|raise|promotion)\b/],
   ['family', /\b(?:mom|mum|mama|momma|dad|papa|parents?|grandma|grandpa|nana|abuela|abuelo)\b/],
@@ -431,7 +437,8 @@ export function fmtDuration(minutes) {
   if (m < 60) return plural(Math.max(m, 0), 'min').replace('mins', 'min');
   if (m < 1440) return plural(Math.round(m / 60), 'hour');
   if (m < 10080) return plural(Math.round(m / 1440), 'day');
-  if (m < 43200) return plural(Math.round(m / 10080), 'week');
+  // Ten days is ten days, not "1 week". Whole weeks, and four or more, read as weeks.
+  if (m < 43200) return m % 10080 === 0 || m >= 40320 ? plural(Math.round(m / 10080), 'week') : plural(Math.round(m / 1440), 'day');
   if (m < 525600) return plural(Math.round(m / 43200), 'month');
   return plural(Math.round(m / 525600), 'year');
 }
@@ -586,7 +593,7 @@ export function receiptShareText(r, url) {
   const lines = [`${BRAND.name} #${r.day}${r.legendary ? ' ★ LEGENDARY' : ''}`];
   if (r.streak > 1) lines.push(`Streak: ${r.streak} days`);
   if (r.thoughtMin) lines.push(`Overthought: ${fmtDuration(r.thoughtMin)}`);
-  lines.push(r.outcome === 'bailed' ? 'Did it in: not today' : `Did it in: ${fmtDid(r.doneSec)}`);
+  lines.push(r.outcome === 'bailed' ? 'Did it in: not today' : `Did it in: ${r.outcome === 'some' ? 'kinda, ' : ''}${fmtDid(r.doneSec)}`);
   const x = r.outcome === 'bailed' ? null : ratio(r.thoughtMin, r.doneSec);
   if (x) lines.push(`Ratio: ${fmtRatio(x)}`);
   if (url) lines.push(url);
@@ -671,7 +678,10 @@ export const chatty = (text) => /\b(?:texted|texting|snap\w*|sc|dm'?d|dms?|dming
 export const FOLLOW_UP_DAYS = 3;
 
 export function followUpFor({ thing, outcome, draftKind, verdict }) {
-  if (verdict === 'think' || detectCrisis(thing) || detectCrisisCheck(thing) || detectOneWay(thing)) return null;
+  if (detectCrisis(thing) || detectCrisisCheck(thing)) return null;
+  // One-way doors never get pushed toward doing the thing. If they did the thinking step
+  // (write the question, a date, somebody who knows), a few days later we ask whether it got a date.
+  if (verdict === 'think' || detectOneWay(thing)) return outcome === 'did' || outcome === 'some' ? { type: 'plan', state: 'open', asks: 0 } : null;
   if (outcome === 'bailed') return { type: 'retry', state: 'open', asks: 0 };
   if (draftKind && (outcome === 'did' || outcome === 'some')) return { type: 'reply', state: 'open', asks: 0 };
   return null;
