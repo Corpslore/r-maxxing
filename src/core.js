@@ -330,8 +330,9 @@ const DRAFT_PATTERNS = [
   ['decline', /\b(?:say(?:ing)? no|declin\w*|back(?:ing)? out|turn(?:ing)? (?:it |them |him |her )?down|bail(?:ing)? on|cancel(?:l?ing)? (?:on|plans|our plans|my plans))\b/],
   ['refund', /\b(?:refund\w*|money back|return(?:ing)? (?:it|this|the))\b/],
   ['followup', /\b(?:follow(?:ing)?[\s-]?up|haven't heard|check(?:ing)? in on|chas(?:e|ing) (?:up|them|him|her))\b/],
+  ['shift', /^(?=.*\b(?:shifts?|schedule|clos(?:e|es|ing)|opens|opening shifts?|time off|days? off|(?:mon|tues|wednes|thurs|fri|satur|sun)days? off|take me off|hours|cover for)\b)(?=.*\b(?:manager|boss|supervisor|work|job|shift lead)\b)/],
   ['meeting', /\b(?:meeting|1:1|one[\s-]on[\s-]one|boss|manager|raise|promotion)\b/],
-  ['reply', /\b(?:(?:text|texting|message|messaging|dm|dming|snap|snapping|email|emailing|write|writing|call|calling)\s+(?:\w+\s+){0,2}back|text(?:ing)?\s+(?:him|her|them|my\s+\w+)|repl(?:y|ying)|respond\w*|get(?:ting)? back to|answer\w*\s+(?:the |her |his |their |my |that )?(?:text|message|email|dm|snap))\b/],
+  ['reply', /\b(?:(?:snapped|texted|messaged|dm'?d|dmed) me|on (?:delivered|read)|left (?:him|her|them|it) on|haven't (?:replied|answered|responded|texted back)|never (?:replied|answered|texted back)|(?:text|texting|message|messaging|dm|dming|snap|snapping|email|emailing|write|writing|call|calling)\s+(?:\w+\s+){0,2}back|text(?:ing)?\s+(?:him|her|them|my\s+\w+)|repl(?:y|ying)|respond\w*|get(?:ting)? back to|answer\w*\s+(?:the |her |his |their |my |that )?(?:text|message|email|dm|snap))\b/],
   ['reconnect', /\b(?:reach(?:ing)? out|reconnect\w*|haven't (?:talked|spoken)|old friend|been (?:a while|forever))\b/],
   ['issue', /\b(?:bring(?:ing)? (?:it |this |that )?up|say (?:the|that) (?:annoying|hard|awkward) thing|talk(?:ing)? to (?:him|her|them) about|bother(?:s|ing) me)\b/],
   ['favor', /\b(?:favou?r|ask(?:ing)? for help|need help from)\b/],
@@ -345,9 +346,15 @@ export function detectDraftKind(text) {
 }
 
 // Templates write "Hey {name}," so a blank name leaves "Hey," rather than a gap.
-export function fillDraft(template, name) {
+// A name that already has a title ("Ms. Reyes") replaces "Professor {name}" whole. A known day or date
+// fills [date] and [day].
+const TITLED = /^(?:mr|mrs|ms|mx|miss|dr|coach|prof|professor)\b/i;
+export function fillDraft(template, name, hints = {}) {
   const n = String(name || '').trim();
-  return n ? template.replace(/\{name\}/g, n) : template.replace(/ \{name\}/g, '').replace(/\{name\}/g, '');
+  let t = n && TITLED.test(n) ? template.replace(/\bProfessor \{name\}/g, '{name}') : template;
+  t = n ? t.replace(/\{name\}/g, n) : t.replace(/ \{name\}/g, '').replace(/\{name\}/g, '');
+  if (hints.when) t = t.replace(/\[(?:date|day|day\/time)\]/gi, hints.when);
+  return t;
 }
 
 const MOVE_PATTERNS = [
@@ -528,3 +535,34 @@ export function addr(text, who = 'brother', max = Infinity) {
   s = s.replace(/\{-(?:b|Bb|B)\}[,.!]?\s*([a-z]?)/g, (m, c) => c.toUpperCase());
   return s;
 }
+
+// ---------- using what they typed in the draft ----------
+// A name with a title ("ms reyes"), or whoever "snapped me", and a day or date ("dec 1", "friday").
+// Rules, not AI: if nothing clear is there, nothing is filled and the [blank] stays.
+const MONTHS = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
+const WHEN_RE = new RegExp(`\\b(?:(${MONTHS})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b|(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|this weekend|next week)\\b)`);
+const TITLE_RE = /\b(mr|mrs|ms|mx|miss|dr|coach|professor|prof)\.?\s+([a-z][a-z'-]{1,20})\b/;
+const SENDER_RE = /\b([a-z][a-z'-]{1,20})(?:\s+from\s+[a-z]+)?\s+(?:snapped|texted|messaged|dm'?d|dmed|called|asked)\s+me\b/;
+const NOT_A_NAME = new Set(['he', 'she', 'they', 'someone', 'somebody', 'everyone', 'nobody', 'who', 'it', 'this', 'that', 'my', 'mom', 'dad',
+  'boss', 'manager', 'friend', 'guy', 'girl', 'teacher', 'just', 'finally', 'literally', 'also', 'and', 'but', 'so', 'then', 'still', 'never', 'already', 'once', 'again']);
+const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+
+export function draftHints(text) {
+  const t = norm(text);
+  let name = '';
+  const titled = TITLE_RE.exec(t);
+  if (titled) {
+    const title = titled[1] === 'prof' ? 'professor' : titled[1];
+    name = `${cap(title)}${['mr', 'mrs', 'ms', 'mx', 'dr'].includes(title) ? '.' : ''} ${cap(titled[2])}`;
+  } else {
+    const sender = SENDER_RE.exec(t);
+    if (sender && !NOT_A_NAME.has(sender[1])) name = cap(sender[1]);
+  }
+  let when = '';
+  const w = WHEN_RE.exec(t);
+  if (w) when = w[1] ? `${cap(w[1].slice(0, 3))} ${Number(w[2])}` : /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/.test(w[3]) ? cap(w[3]) : w[3];
+  return { name, when };
+}
+
+// Texting places get the lowercase version of a message by default.
+export const chatty = (text) => /\b(?:snap\w*|sc|dm'?d|dms?|dming|delivered|on read|gc|group ?chat|insta|ig|tiktok|discord|story|stories)\b/.test(norm(text));

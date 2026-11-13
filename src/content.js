@@ -44,9 +44,9 @@ export const HOME_CTA_QUIET = 'OKAY. I’M SPIRALING.';
 export const QUIZ = [
   { q: 'THE MENU HAS|40 THINGS ON IT.', a: ['Point at one.', 'Check the reviews.', 'Find photos of this exact dish from 2019.'] },
   { q: 'YOU HAVE A 2-LINE|TEXT TO SEND.', a: ['Sent.', 'Rewrote it twice.', 'It’s in the group chat for review.'] },
-  { q: 'IT’S 3AM.|YOUR BRAIN IS…', a: ['Asleep.', 'Replaying something from 2014.', 'Winning an argument that hasn’t happened.'] },
+  { q: 'IT’S 3AM.|YOUR BRAIN IS…', a: ['Asleep.', 'Replaying something you said in 7th grade.', 'Winning an argument that hasn’t happened.'] },
   { q: 'YOU’RE BUYING|A $20 THING.', a: ['Bought it.', 'Seven tabs open.', 'It’s in a spreadsheet.'] },
-  { q: 'YOUR BIG|IDEA IS…', a: ['Out there. It’s bad. It’s fine.', 'Almost ready.', 'It has a logo and no product.'] },
+  { q: 'YOUR GROUP|PROJECT IS…', a: ['Done. It’s bad. It’s fine.', 'Almost done.', 'It has a group chat and no slides.'] },
   { q: 'SOMEONE SAYS|“WE SHOULD TALK.”', a: ['Okay.', 'About what?', 'You’ve already drafted your defense.'] },
   { q: 'WHERE DO YOU|WANT TO EAT?', a: ['Tacos.', 'I’m good with whatever.', 'Let me get back to you.'] },
 ];
@@ -62,6 +62,7 @@ export const TYPES = [
 export const THINK_TIMES = [
   { id: 'hour', label: 'AN HOUR', minutes: 60 },
   { id: 'day', label: 'A DAY', minutes: 1440 },
+  { id: 'days', label: 'A FEW DAYS', minutes: 4320 },
   { id: 'week', label: 'A WEEK', minutes: 10080 },
   { id: 'month', label: 'A MONTH', minutes: 43200 },
   { id: 'year', label: 'A YEAR OR MORE', minutes: 525600 },
@@ -107,6 +108,9 @@ export const DEFAULT_THINK_MOVE = 'Write down the question, pick a date to decid
 // The first tiny step the fast lane suggests, picked by core.suggestKind from what you typed.
 export const MOVE_SUGGESTIONS = {
   draft: 'Send it. Ugly is fine.',
+  // After MAKE IT STUPID SMALL: a smaller version, not the same thing.
+  shrinkDraft: 'Ask for the smallest piece of it. One line.',
+  shrink: 'Do the 2-minute version you can take back.',
   gym: 'Put your shoes on and go.',
   email: 'Open it and write one ugly sentence.',
   apply: 'Open the application and fill in the first box.',
@@ -127,6 +131,7 @@ export const DRAFTS = [
     'heyy [your answer] how’s ur week going',
     'omg sorry just saw this. [your answer]',
     'late but yes to [the thing] lol. u around this week',
+    'sorry i’m so late on this. [your answer]',
   ] },
   { id: 'group', label: 'GROUP CHAT', subject: 'Plans', variants: [
     'Okay who’s free [day]? I’m in for [the plan].',
@@ -165,11 +170,20 @@ export const DRAFTS = [
     'Hi Professor {name}, I have a quick question about my grade on [assignment]. Could we go over it for a few minutes this week?',
   ] },
   { id: 'rec', label: 'ASK FOR A REC LETTER', subject: 'Recommendation request', variants: [
+    'Hi {name}, I’m applying to [colleges or program], and you know my work better than anyone. Would you be willing to write me a recommendation? It’s due [date]. I can send my resume and anything else that helps. Thank you!',
     'Hi Professor {name}, I took your [class] in [semester] and really liked it. I’m applying to [program or job], and I’d be grateful if you’d write me a recommendation. It’s due [date]. I can send my resume and anything else that helps. Totally understand if you can’t.',
   ] },
   { id: 'job', label: 'JOB FOLLOW-UP', subject: 'Following up on my application', variants: [
     'Hi {name}, I applied for the [role] position on [date] and wanted to check in. I’m still very interested and happy to send anything else you need. Thank you!',
     'Hi {name}, thanks again for talking with me about the [role]. I enjoyed it and I’m still very interested. Is there anything else I can send?',
+  ] },
+  { id: 'shift', label: 'WORK SCHEDULE', subject: 'Schedule request', variants: [
+    'Hi {name}, could I come off [day] shifts for the next [few weeks]? I have [reason]. Happy to pick up [another shift] instead.',
+    'Hi {name}, I need [day] off for [reason]. I can swap with someone or pick up [another shift]. Does that work?',
+    'Hi {name}, can we look at my schedule? I can do [days you can work], but not [days you can’t] for the next [few weeks].',
+  ], casual: [
+    'hey! could i get off [day] shifts for the next [few weeks]? i have [reason]. i can pick up [another shift]',
+    'hey can i get [day] off? i can swap or pick up [another shift]',
   ] },
   { id: 'recruiter', label: 'REPLY TO A RECRUITER', subject: 'Re: [role]', variants: [
     'Hi {name}, thanks for reaching out! I’m interested. I’m free [time 1] or [time 2] this week for a call. Does either work?',
@@ -741,6 +755,7 @@ export const BOLD_DRAFTS = {
   prof: ['Hi Professor {name}, I’m in your [class] section. I need an extension on [assignment] until [day], and I’ll have it to you by then. Thank you.', 'Hi Professor {name}, I’ll be at office hours [day] to go over [topic]. See you then.'],
   rec: ['Hi Professor {name}, I did my best work of the year in your [class]. I’m applying to [program or job], and you’re the person I want writing my recommendation. It’s due [date]. I’ll send everything you need today.'],
   job: ['Hi {name}, I applied for the [role] on [date]. I’m a strong fit and I want this job. What’s the next step?'],
+  shift: ['Hi {name}, I can’t work [day] for the next [few weeks] because of [reason]. I can cover [another shift] instead.'],
   recruiter: ['Hi {name}, I’m interested. I’m free [time 1] or [time 2]. What’s the pay range for this role?'],
   meeting: ['Hi {name}, I’d like 20 minutes this week to talk about [topic]. Does [day] work?'],
   followup: ['Hi {name}, bumping this back to the top of your inbox. What’s the next step?'],

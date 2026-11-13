@@ -713,3 +713,7 @@ a.btn { text-decoration: none; }
 .pro-pitch { margin: 6px 0 0; font-weight: 700; font-size: 15px; }
 .bold-link, .hard-link { font-weight: 800; }
 .hard-link { display: block; margin: 10px auto 0; }
+
+/* The GO stays on screen on the long fast step and under the scan result. */
+.pin-foot .step-foot, .step-foot.pinned { position: sticky; bottom: 0; z-index: 3; margin: 0 -18px; padding: 22px 18px calc(12px + var(--safe-b)); background: linear-gradient(to bottom, transparent, var(--bg) 20px); }
+#thing, #move, #draft { overflow: hidden; resize: none; }

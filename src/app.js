@@ -163,6 +163,11 @@ const buzz = (ms = 12) => haptic(typeof ms !== 'number' ? 'success' : ms >= 45 ?
 // Quiet mode (in About, or the late-night prompt) and the phone's reduced-motion setting both mean no shaking.
 const calm = () => !!S.quiet || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const homeCta = () => (S.quiet ? HOME_CTA_QUIET : HOME_CTA);
+// A text box as tall as what's in it, so nothing typed is hidden.
+const grow = (el) => {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight + 4}px`;
+};
 // Every BUT WHAT IF, plus the group chat pack with Pro.
 const objPool = () => (S.pro ? [...OBJECTIONS, ...PRO_OBJECTIONS] : OBJECTIONS);
 // Pro things show up locked only where they can be bought (the app, or the test store).
@@ -296,6 +301,12 @@ function render() {
   // {b} tokens in the copy become what the person picked to be called, once per screen.
   root.innerHTML = C.addr(html, S.who, 1);
   fitAll();
+  root.querySelectorAll('#thing, #draft, #move').forEach(grow);
+  const kindChip = root.querySelector('.draft-kinds .chip.on');
+  if (kindChip) {
+    const row = kindChip.parentElement;
+    row.scrollLeft += kindChip.getBoundingClientRect().left - row.getBoundingClientRect().left - 18;
+  }
   fn.after?.();
   root.querySelector('h1')?.setAttribute('tabindex', '-1');
   // Browsers only honor `autofocus` on first load, not on injected markup.
@@ -316,7 +327,7 @@ function tabs(active, inner) {
     <nav class="tabs" aria-label="Main">${tab('home', 'TODAY')}${tab('method', 'METHOD')}${tab('receipts', 'RECEIPTS')}${tab('vault', 'VAULT')}</nav>`;
 }
 
-function step({ title, max, sub = '', body = '', foot = '', after = '', progress = 0, center = false, back = true, top = null, inlineFoot = false, eyebrow = '', slam = false }) {
+function step({ title, max, sub = '', body = '', foot = '', after = '', progress = 0, center = false, back = true, top = null, inlineFoot = false, eyebrow = '', slam = false, pin = false }) {
   const barHtml = top ?? `<div class="bar"><i style="width:${progress}%"></i></div>`;
   // On typing steps the button sits right under the field, so a phone keyboard can't cover it.
   let bodyHtml = body;
@@ -325,7 +336,7 @@ function step({ title, max, sub = '', body = '', foot = '', after = '', progress
     bodyHtml = `${body}<div class="inline-foot">${foot}</div>${after}`;
     footHtml = '';
   }
-  return `<section class="step">
+  return `<section class="step ${pin ? 'pin-foot' : ''}">
     <header class="step-top">
       ${back ? '<button class="icon" data-a="back" aria-label="Back">←</button>' : '<span class="icon"></span>'}
       ${barHtml}
@@ -527,9 +538,9 @@ VIEWS.quizResult = () => {
         ${vs}
         ${callMe()}
       </div>
-      <footer class="step-foot">
-        <button class="btn mega" data-a="share-quiz">SHARE MY SCAN</button>
-        <button class="btn ghost" data-a="start">START SMOOTHING</button>
+      <footer class="step-foot pinned">
+        <button class="btn mega" data-a="start">${homeCta()}</button>
+        <button class="btn ghost" data-a="share-quiz">SHARE MY SCAN</button>
       </footer>
     </section>`,
   };
@@ -613,7 +624,8 @@ function currentDraft(L) {
   // BOLD (Pro): written like you're not scared.
   const bold = L.draftBold && S.pro && BOLD_DRAFTS[kind.id];
   const list = bold || (L.draftCasual && kind.casual ? kind.casual : kind.variants);
-  return C.fillDraft(list[(L.draftVariant || 0) % list.length], L.draftName);
+  const hints = C.draftHints(L.thing);
+  return C.fillDraft(list[(L.draftVariant || 0) % list.length], L.draftName ?? hints.name, hints);
 }
 
 function syncDraftLinks() {
@@ -702,7 +714,7 @@ const STEPS = {
       ? `<button class="draft-card" data-a="to-draft"><span class="eyebrow">Looks like a message</span><strong>WRITE IT FOR ME</strong><span class="tag">WRITE</span></button>`
       : think ? '' : '<button class="link words-link" data-a="to-draft">Need words? Pick a message →</button>';
     const dread = `<div class="dread-row" role="group" aria-label="How bad is it gonna go?">
-        <p class="eyebrow">Call it: how bad will it go? We check later.</p>
+        <p class="eyebrow">Call it: how bad will it go? We check when you’re done.</p>
         <div class="dread-pills">${DREAD.map((d, i) => `<button class="pill-btn" data-a="dread-pick" data-v="${i}" aria-pressed="${L.dread === i}">${d.toUpperCase()}</button>`).join('')}</div>
       </div>`;
     return {
@@ -712,6 +724,7 @@ const STEPS = {
         max: 96,
         sub: L.source === 'free' ? esc(L.thing) : '',
         progress: PROGRESS.fast,
+        pin: true,
         body: `<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step">${esc(L.move)}</textarea>${chips}${draftCard}${dread}`,
         foot: `<button class="btn mega" id="next" data-a="fast-go" ${L.move.trim() ? '' : 'disabled'}>GO</button>`,
       }),
@@ -729,7 +742,7 @@ const STEPS = {
         sub: 'Plain, short, sendable. Change anything.',
         progress: PROGRESS.draft,
         body: `<div class="chips draft-kinds">${kinds}</div>
-          <input id="draft-name" class="name-field" type="text" maxlength="40" placeholder="Their name (optional)" value="${esc(L.draftName || '')}" autocomplete="off" aria-label="Their name">
+          <input id="draft-name" class="name-field" type="text" maxlength="40" placeholder="Their name (optional)" value="${esc(L.draftName ?? C.draftHints(L.thing).name)}" autocomplete="off" aria-label="Their name">
           <textarea id="draft" class="draft-box" rows="4" maxlength="600" aria-label="Your message">${esc(text)}</textarea>
           <div class="draft-tools">
             <button class="link" data-a="draft-another">↻ Another one</button>
@@ -761,7 +774,7 @@ const STEPS = {
           <div class="clock" id="clock" role="timer">${C.fmtClock(running ? remaining(L) : L.dur)}</div>
           ${running ? `<p class="hype in" id="hype">${esc(L.hype || '')}</p>` : ''}
           <p class="plan">${esc(L.move || L.thing)}</p>
-          ${L.draft ? `<div class="draft-mini"><p>${esc(L.draft)}</p><button class="link" data-a="draft-copy">Copy it again</button></div>` : ''}
+          ${L.draft && !C.hasBlanks(L.draft) ? `<div class="draft-mini"><p>${esc(L.draft)}</p><button class="link" data-a="draft-copy">Copy it again</button></div>` : ''}
           ${running ? '' : '<button class="link" data-a="objection">But what if…</button>'}
           <p class="sub center-text" id="clock-note"></p>`,
         foot: running
@@ -938,6 +951,8 @@ function finishLoop() {
 
 // ---------- close and receipts ----------
 
+const receiptDate = (at) => new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+
 function receiptHTML(r, showThing) {
   const rows = [];
   rows.push(['The thing', showThing ? esc(r.thing) : '<span class="redact" aria-label="Hidden"></span>']);
@@ -952,7 +967,7 @@ function receiptHTML(r, showThing) {
   const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? 'THINKING TO DOING' : 'THAT’S THE WHOLE THING';
   return `<div class="receipt-wrap"><div class="receipt ${r.legendary ? 'gold' : `skin-${skinOf().id}`}">
     <p class="r-title">${wordmark()}</p>
-    <p class="r-sub">RECEIPT #${r.n ?? r.day}${r.n ? ` · DAY ${r.day}` : ''}${r.legendary ? ' ★ LEGENDARY' : ''}</p>
+    <p class="r-sub">RECEIPT #${r.n ?? r.day}${r.at ? ` · ${receiptDate(r.at)}` : ''}${r.legendary ? ' ★ LEGENDARY' : ''}</p>
     <div class="r-rows"><dl>${rows.map(([k, v]) => `<div class="r-row"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></div>
     <p class="r-big">${bigText}</p>
     <p class="r-label">${label}</p>
@@ -1642,6 +1657,9 @@ function prefilled(move, source) {
 
 function suggestFor(L) {
   L.draftKind = C.detectDraftKind(L.thing);
+  if (L.draftCasual === undefined) L.draftCasual = C.chatty(L.thing);
+  // After MAKE IT STUPID SMALL, a smaller version, not the same step.
+  if (L.verdict === 'shrink') return MOVE_SUGGESTIONS[L.draftKind ? 'shrinkDraft' : 'shrink'];
   return MOVE_SUGGESTIONS[C.suggestKind(L.thing, L.draftKind)];
 }
 
@@ -1687,7 +1705,11 @@ const ACTIONS = {
     el.classList.toggle('is-off', off);
     toast(off ? 'SOUND OFF' : 'SOUND ON. Nothing? Check the silent switch.');
   },
-  start: () => startLoop({}),
+  start: () => {
+    shake();
+    buzz(30);
+    startLoop({});
+  },
   'start-door': () => startLoop({ full: true }),
   daily: () => prefilled(dailyMove(C.dateKey()), 'daily'),
 
@@ -1882,13 +1904,20 @@ const ACTIONS = {
     L.draftKind = d.v;
     L.draftVariant = 0;
     L.draftEdited = false;
+    L.draft = null;
     save();
     go('loop');
   },
   'draft-another': () => {
     const L = S.active;
+    if (L.draftEdited && Date.now() - (L.anotherArmed || 0) > 4000) {
+      L.anotherArmed = Date.now();
+      return toast('That swaps out your edit. Tap again to swap it.');
+    }
+    L.anotherArmed = 0;
     L.draftVariant = (L.draftVariant || 0) + 1;
     L.draftEdited = false;
+    L.draft = null;
     save();
     go('loop');
   },
@@ -1921,6 +1950,7 @@ const ACTIONS = {
     L.draftCasual = false;
     L.draftVariant = 0;
     L.draftEdited = false;
+    L.draft = null;
     save();
     return go('loop');
   },
@@ -1930,6 +1960,7 @@ const ACTIONS = {
     L.draftBold = false;
     L.draftVariant = 0;
     L.draftEdited = false;
+    L.draft = null;
     save();
     go('loop');
   },
@@ -1947,6 +1978,7 @@ const ACTIONS = {
   'draft-copy': () => {
     const text = S.active?.draft;
     if (!text) return undefined;
+    if (C.hasBlanks(text)) return toast('Fill in the [brackets] first.');
     return navigator.clipboard?.writeText(text).then(() => toast('Copied.'), () => toast('Couldn’t copy. Press and hold the text instead.'));
   },
   'timer-short': () => {
@@ -2272,6 +2304,7 @@ root.addEventListener('click', (e) => {
 
 root.addEventListener('input', (e) => {
   const t = e.target;
+  if (['thing', 'move', 'draft'].includes(t.id)) grow(t);
   if (!S.active) return;
   if (t.id === 'thing' || t.id === 'move') {
     S.active[t.id] = t.value;
@@ -2282,7 +2315,10 @@ root.addEventListener('input', (e) => {
     S.active.draftName = t.value;
     if (!S.active.draftEdited) {
       const box = document.getElementById('draft');
-      if (box) box.value = currentDraft(S.active);
+      if (box) {
+        box.value = currentDraft(S.active);
+        grow(box);
+      }
     }
     save();
     syncDraftLinks();
@@ -2354,6 +2390,17 @@ function boot() {
 // Android with "Remove animations" (or animator scale 0) can freeze CSS animations on their first
 // frame instead of skipping them: headlines stuck at 2.4x, faded-in text never arriving. Seen on an
 // emulator on 2026-11-11. If the clock runs but finite animations haven't moved, turn them all off.
+document.addEventListener('click', (e) => {
+  const box = e.target;
+  if (!(box instanceof HTMLTextAreaElement) || box.id !== 'draft' || box.selectionStart !== box.selectionEnd) return;
+  const at = box.selectionStart;
+  const v = box.value;
+  const open = v.lastIndexOf('[', at);
+  const close = open === -1 ? -1 : v.indexOf(']', open);
+  if (close === -1 || close + 1 < at || v.slice(open, close).includes('\n')) return;
+  box.setSelectionRange(open, close + 1);
+});
+
 function watchFrozenAnimations() {
   if (!document.getAnimations) return;
   const t0 = document.timeline?.currentTime;
