@@ -735,3 +735,36 @@ a.btn { text-decoration: none; }
 /* What it was stays blurred on the home screen until tapped. */
 .fu-thing.peek { display: block; width: 100%; text-align: left; padding: 2px 0; background: none; border: 0; font: inherit; font-weight: 700; font-size: 14px; color: var(--mute); filter: blur(6px); cursor: pointer; }
 .fu-thing.peek.shown { filter: none; }
+
+/* Brain court: the summons on home, the exhibits, the verdict. */
+.court-card { display: grid; gap: 4px; width: 100%; margin: 4px 0 12px; padding: 16px; border-radius: 16px; background: var(--sun); color: #0B0B0B; text-align: left; box-shadow: 0 6px 0 #7A6E00; }
+.court-card .eyebrow { margin: 0; color: #0B0B0B; }
+.court-card strong { font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 34px; line-height: 1.02; letter-spacing: .02em; }
+.court-sub { font-weight: 700; font-size: 15px; color: #4F4800; }
+.court-go { justify-self: start; margin-top: 8px; padding: 10px 16px; border-radius: 999px; background: #0B0B0B; color: var(--sun); font-family: "Anton", Impact, sans-serif; font-size: 20px; letter-spacing: .03em; }
+.teaser.court { box-shadow: inset 0 0 0 3px var(--sun); }
+.teaser.court b { color: var(--sun); }
+.exhibits { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+.exhibit { position: relative; padding: 12px 14px; border-radius: 14px; background: var(--raised); box-shadow: inset 0 0 0 3px var(--line); }
+.ex-head { min-height: 26px; margin: 0 0 2px; padding-right: 132px; font-family: "DM Mono", ui-monospace, monospace; font-size: 12.5px; letter-spacing: .06em; color: var(--mute); }
+.ex-head b { font-weight: 500; color: var(--fg); }
+.ex-row { display: flex; justify-content: space-between; gap: 10px; margin: 4px 0 0; font-weight: 700; font-size: 14px; color: var(--mute); }
+.ex-row b { font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 20px; letter-spacing: .03em; color: var(--fg); }
+.ex-note { margin: 6px 0 0; font-weight: 700; font-size: 15px; }
+.stamp { position: absolute; top: 9px; right: 10px; padding: 2px 7px; border: 3px solid currentColor; border-radius: 6px; font-family: "Anton", Impact, sans-serif; font-size: 15px; letter-spacing: .04em; white-space: nowrap; transform: rotate(-6deg); color: var(--mute); background: transparent; }
+.ex-lie .stamp { color: var(--pink); }
+.ex-called .stamp, .ex-worse .stamp { color: #7CFF4F; }
+.ex-stall .stamp { color: #FF7A00; }
+.ex-overturned .stamp { color: var(--sun); }
+.cred { display: grid; justify-items: center; gap: 0; margin: 14px auto 0; padding: 10px 18px; border-radius: 14px; background: var(--raised); }
+.cred span { font-family: "DM Mono", ui-monospace, monospace; font-size: 12.5px; letter-spacing: .08em; color: var(--mute); }
+.cred b { font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 64px; line-height: 1; }
+.cred em { font-style: normal; font-weight: 800; font-size: 14px; color: var(--mute); text-decoration: line-through; }
+.sentence { margin: 12px 0 0; padding: 12px 14px; border-radius: 14px; box-shadow: inset 0 0 0 3px var(--line); text-align: left; }
+.sentence .eyebrow { margin: 0 0 2px; }
+.sentence p:last-child { margin: 0; font-weight: 800; font-size: 17px; line-height: 1.3; }
+.court-soon { display: grid; gap: 2px; margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: var(--raised); box-shadow: inset 0 0 0 3px var(--sun); }
+.court-soon b { font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 24px; letter-spacing: .02em; color: var(--sun); }
+.court-soon span { font-weight: 700; font-size: 15px; color: var(--mute); }
+.cred-move { margin: 8px 0 0; font-family: "DM Mono", ui-monospace, monospace; font-size: 13px; letter-spacing: .06em; color: var(--mute); text-align: center; }
+.cred-move b { color: var(--fg); }

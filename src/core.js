@@ -475,6 +475,88 @@ export function lifetime(receipts) {
   };
 }
 
+// ---------- brain court ----------
+// On day 3, 7, 14 and 30 of showing up, the brain goes on trial with the person's own receipts as evidence.
+
+export const TRIAL_DAYS = [3, 7, 14, 30];
+
+// Days with a receipt before `today`. Today's own activity counts toward the next hearing, not this one.
+export function daysActiveBefore(receipts, today) {
+  return new Set((receipts || []).map((r) => dateKey(new Date(r.at))).filter((k) => k < today)).size;
+}
+
+// The hearing owed on `today`, or null. Only the latest one owed is held, so a long gap
+// doesn't stack three trials up. `held` is the list of past hearings ({ day }).
+export function trialDue(receipts, held, today) {
+  const before = daysActiveBefore(receipts, today);
+  const last = Math.max(0, ...(held || []).map((h) => h.day || 0));
+  const owed = TRIAL_DAYS.filter((d) => d > last && before >= d - 1);
+  return owed.length ? owed[owed.length - 1] : null;
+}
+
+// How the follow-up answer ranks on the same scale as the guess (DREAD: fine, awkward, bad, disaster).
+const ANSWER_LEVEL = { fine: 0, weird: 1 };
+
+// One exhibit per receipt. The next-day answer beats the same-day guess: it's how it actually went.
+// Disasters and anything that read as a crisis stay out of court. Nothing about those is funny.
+export function exhibitFor(r) {
+  if (!r || detectCrisis(r.thing || '') || detectCrisisCheck(r.thing || '')) return null;
+  const base = { id: r.id, at: r.at };
+  if (r.outcome === 'bailed') return { ...base, type: r.fu?.result === 'did' ? 'overturned' : 'bail' };
+  const ans = ANSWER_LEVEL[r.fu?.result];
+  const was = ans ?? r.reality;
+  if (was === 3) return null;
+  if (r.dread != null && was != null) {
+    const type = was < r.dread ? 'lie' : was > r.dread ? 'worse' : 'called';
+    return { ...base, type, said: r.dread, was, answered: ans != null };
+  }
+  if (r.thoughtMin && r.doneSec) return { ...base, type: 'stall', thoughtMin: r.thoughtMin, doneSec: r.doneSec };
+  return null;
+}
+
+// Share of checked guesses the brain got right, or null with nothing checked.
+export const credibility = ({ lies, calls }) => (lies + calls ? Math.round((100 * calls) / (lies + calls)) : null);
+
+// The case for one hearing: the brain's whole record, plus up to `max` exhibits from since the last
+// hearing (lies first in line, then shown oldest first, like a court would).
+export function trialCase(receipts, sinceAt = 0, max = 4) {
+  const list = receipts || [];
+  const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+  // A bail that a later receipt did (round 2, or just trying again) is overturned, not a win for the brain.
+  const redone = (r) => list.some((x) => x.at > r.at && x.outcome !== 'bailed' && same(x.thing, r.thing));
+  const all = list
+    .map((r) => {
+      const e = exhibitFor(r);
+      return e?.type === 'bail' && redone(r) ? { ...e, type: 'overturned' } : e;
+    })
+    .filter(Boolean);
+  const lies = all.filter((e) => e.type === 'lie').length;
+  const calls = all.filter((e) => e.type === 'called' || e.type === 'worse').length;
+  const recent = all.filter((e) => e.at > sinceAt);
+  const rank = { lie: 0, stall: 1, called: 2, worse: 2, overturned: 3, bail: 4 };
+  const exhibits = [...recent]
+    .sort((a, b) => rank[a.type] - rank[b.type] || b.at - a.at)
+    .slice(0, max)
+    .sort((a, b) => a.at - b.at);
+  const timed = list.filter((r) => r.at > sinceAt && r.outcome !== 'bailed' && r.thoughtMin && r.doneSec);
+  return {
+    exhibits,
+    lies,
+    calls,
+    cred: credibility({ lies, calls }),
+    thoughtMin: timed.reduce((a, r) => a + r.thoughtMin, 0),
+    doneSec: timed.reduce((a, r) => a + r.doneSec, 0),
+  };
+}
+
+// guilty: lied more than it called it. split: even. accurate: mostly right (and you did them anyway).
+// stalling: no guesses to check, but the thinking-to-doing time is on file. continued: nothing to rule on.
+export function trialVerdict(c) {
+  if (c.lies + c.calls > 0) return c.lies > c.calls ? 'guilty' : c.lies === c.calls ? 'split' : 'accurate';
+  if (c.thoughtMin && c.doneSec) return 'stalling';
+  return 'continued';
+}
+
 // ---------- share text and challenge links ----------
 
 export function parseVs(hash) {

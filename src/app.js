@@ -5,7 +5,7 @@ import {
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
-  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
@@ -22,11 +22,11 @@ const DEFAULTS = {
   w: null, startW: null, typeName: null, quizSeconds: null, wis: C.START_WIS,
   streak: 0, lastDay: null, lastSeen: null, installLater: null,
   wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false,
-  receipts: [], read: [], dailyDone: {}, active: null,
+  receipts: [], read: [], dailyDone: {}, active: null, trials: [],
 };
 
 // seen: shuffle-bag rounds per pool. found: what the Vault has collected for good.
-const blank = () => ({ ...DEFAULTS, receipts: [], read: [], dailyDone: {}, seen: {}, found: { koans: [], rares: [], heard: [] }, closet: [], reviewAt: [] });
+const blank = () => ({ ...DEFAULTS, receipts: [], read: [], dailyDone: {}, seen: {}, found: { koans: [], rares: [], heard: [] }, closet: [], reviewAt: [], trials: [] });
 
 // Fills gaps in older saves and backup codes, so new features never meet a missing field.
 function hydrate(saved) {
@@ -42,6 +42,7 @@ function hydrate(saved) {
     found: { ...b.found, ...(s.found && typeof s.found === 'object' ? s.found : {}) },
     closet: Array.isArray(s.closet) ? s.closet : [],
     reviewAt: Array.isArray(s.reviewAt) ? s.reviewAt : [],
+    trials: Array.isArray(s.trials) ? s.trials : [],
   };
 }
 
@@ -158,7 +159,24 @@ function nextOpening(d = days()) {
   if (!b || (a && a.inDays <= b.inDays)) return { kind: 'lessons', ...a };
   return { kind: 'packs', ...b };
 }
-const installed = () => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+// Brain court: the hearing owed today, and the next one coming.
+const tomorrowKey = () => C.dateKey(new Date(Date.now() + 86400000));
+const trialToday = () => C.trialDue(S.receipts, S.trials, C.dateKey());
+const lastTrialAt = () => Math.max(0, ...S.trials.map((t) => t.at || 0));
+// soon: one is due tomorrow already. act: one will be, if they do one thing today.
+function trialAhead() {
+  if (trialToday()) return null;
+  const t = tomorrowKey();
+  const soon = C.trialDue(S.receipts, S.trials, t);
+  if (soon) return { day: soon, how: 'soon' };
+  const today = C.dateKey();
+  if (S.receipts.some((r) => C.dateKey(new Date(r.at)) === today)) return null;
+  const ifAct = C.trialDue([...S.receipts, { at: Date.now() }], S.trials, t);
+  return ifAct ? { day: ifAct, how: 'act' } : null;
+}
+// {key} fill-ins for copy. Unknown keys (like the {b} address tokens) are left for render().
+const fill = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => (k in o ? String(o[k]) : m));
+const installed =() => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
 const buzz = (ms = 12) => haptic(typeof ms !== 'number' ? 'success' : ms >= 45 ? 'heavy' : ms >= 25 ? 'medium' : 'light');
 // Quiet mode (in About, or the late-night prompt) and the phone's reduced-motion setting both mean no shaking.
 const calm = () => !!S.quiet || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -375,12 +393,12 @@ VIEWS.home = () => {
           <button class="mini" data-a="about" aria-label="About">?</button>
         </span>
       </header>
-      ${followUpCard()}
+      ${courtCard() || followUpCard()}
       <section class="hero">
         <button class="hero-brain" data-a="poke" aria-label="Poke the brain">${brainSVG(w, 'wobble')}${stickerSVG('NOT A THOUGHT ★ HEAD EMPTY ★ ')}<span class="bubble" aria-live="polite"></span></button>
         <h1 class="score">${w}% <small>WRINKLED${S.streak > 1 ? ` · ${S.streak}-DAY STREAK` : ''}</small></h1>
         ${statBars(w, S.wis)}
-        ${S.receipts.length < 3 ? '<p class="lower-better">LOWER IS BETTER. 0% IS THE DREAM.</p>' : ''}
+        ${S.receipts.length < 3 ? '<p class="lower-better">LOWER IS BETTER. 0% IS THE DREAM.</p>' : credLine()}
       </section>
       ${lateNightCard()}
       <button class="btn mega" data-a="start">${homeCta()}</button>
@@ -487,8 +505,142 @@ VIEWS.verdict.after = () => {
   celebrate({ shape: 'star', motion: 'burst', count: 18 });
 };
 
-// A reason to come back tomorrow: what opens next, and when.
+// ---------- brain court ----------
+// Day 3 (then 7, 14, 30): the brain goes on trial with the person's receipts as evidence.
+// view: { day, stage: 'witness' | 'exhibits' | 'verdict', entry }
+
+function courtCard() {
+  const lvl = trialToday();
+  if (!lvl) return '';
+  const t = TRIAL.levels[lvl];
+  return `<button class="court-card" data-a="trial" aria-label="${t.card} ${TRIAL.open}">
+    <span class="eyebrow">${t.eyebrow}</span>
+    <strong>${t.card}</strong>
+    <span class="court-sub">${TRIAL.cardSub}</span>
+    <span class="court-go">${TRIAL.open} →</span>
+  </button>`;
+}
+
+// Between hearings, home keeps the brain's number in view, and when it's back in court.
+function credLine() {
+  if (!S.trials.length) return '';
+  const cred = C.trialCase(S.receipts).cred;
+  const last = Math.max(...S.trials.map((t) => t.day || 0));
+  const next = C.TRIAL_DAYS.find((d) => d > last);
+  const bits = [cred != null ? `${cred}% CREDIBLE` : '', trialToday() ? 'IN COURT TODAY' : next ? `NEXT HEARING DAY ${next}` : ''].filter(Boolean);
+  return bits.length ? `<p class="lower-better">BRAIN: ${bits.join(' · ')}</p>` : '';
+}
+
+// Yesterday's message, if they haven't said yet whether it got an answer: the last witness.
+function trialWitness() {
+  const r = C.followUpDue(S.receipts, C.dateKey());
+  return r && r.fu.type === 'reply' ? r : null;
+}
+
+const peek = (r) => (r ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}</button>` : '');
+
+function exhibitHTML(e, i) {
+  const r = S.receipts.find((x) => x.id === e.id);
+  const row = (k, v) => `<p class="ex-row"><span>${k}</span><b>${esc(String(v).toUpperCase())}</b></p>`;
+  let rows;
+  if (e.type === 'stall') rows = row('Thought about it', C.fmtDuration(e.thoughtMin)) + row('Took', C.fmtDid(e.doneSec));
+  else if (e.type === 'bail' || e.type === 'overturned') rows = `<p class="ex-note">${TRIAL[e.type]}</p>`;
+  else rows = row('Your brain said', DREAD[e.said]) + row(e.answered ? 'They answered' : 'It was', e.answered ? (e.was ? 'Weird' : 'Fine') : DREAD[e.was]);
+  return `<li class="exhibit ex-${e.type}">
+    <p class="ex-head"><b>EXHIBIT ${'ABCDEFGH'[i]}</b> · ${receiptDate(e.at)}</p>
+    ${peek(r)}
+    ${rows}
+    <span class="stamp">${TRIAL.stamps[e.type]}</span>
+  </li>`;
+}
+
+VIEWS.trial = () => {
+  const t = TRIAL.levels[view.day];
+  if (!t) return VIEWS.home();
+  const top = '<div style="flex:1"></div>';
+  if (view.stage === 'witness') {
+    const r = trialWitness();
+    if (r) {
+      return {
+        html: step({
+          eyebrow: TRIAL.witness.eyebrow,
+          title: r.to ? `DID ${r.to.toUpperCase()}|ANSWER?` : 'DID THEY|ANSWER?',
+          max: 120,
+          back: false,
+          top,
+          body: `${peek(r)}<div class="fu-choices">${FOLLOW_UP.reply.choices.map(([v, label]) => `<button class="chip" data-a="trial-witness" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>`,
+        }),
+      };
+    }
+  }
+  if (view.stage === 'verdict' && view.entry) return trialVerdictView(t, view.entry);
+  const c = C.trialCase(S.receipts, lastTrialAt());
+  return {
+    html: step({
+      eyebrow: t.eyebrow,
+      title: t.title,
+      max: 84,
+      sub: t.sub,
+      back: false,
+      top,
+      pin: true,
+      body: c.exhibits.length ? `<ol class="exhibits">${c.exhibits.map(exhibitHTML).join('')}</ol>` : '',
+      foot: `<button class="btn mega" data-a="trial-verdict">${TRIAL.toVerdict}</button>`,
+    }),
+  };
+};
+
+// The ruling's words: the first hearing gets the plain ones, later hearings their own.
+const rulingFor = (e) => (e.day > C.TRIAL_DAYS[0] && TRIAL.again[e.verdict]) || TRIAL.verdicts[e.verdict] || TRIAL.verdicts.continued;
+
+function trialVerdictView(t, e) {
+  const v = rulingFor(e);
+  const sub = fill(v.sub, {
+    lies: e.lies,
+    calls: e.calls,
+    total: e.lies + e.calls,
+    think: C.fmtDuration(e.thoughtMin || 0),
+    did: C.fmtDid(e.doneSec || 0),
+  });
+  const cred = e.cred == null ? '' : `<div class="cred"><span>${TRIAL.cred}</span><b>${e.cred}%</b>${e.prev != null && e.prev !== e.cred ? `<em>WAS ${e.prev}%</em>` : ''}</div>`;
+  const sentence = TRIAL.sentence[e.verdict] || (e.day > C.TRIAL_DAYS[0] ? TRIAL.sentence.again : TRIAL.sentence.base);
+  return {
+    tone: v.tone,
+    html: step({
+      eyebrow: `${t.name} · THE VERDICT`,
+      title: v.title,
+      max: 170,
+      center: true,
+      back: false,
+      top: '<div style="flex:1"></div>',
+      slam: true,
+      sub: esc(sub),
+      body: `${cred}<div class="sentence"><p class="eyebrow">${TRIAL.sentence.eyebrow}</p><p>${sentence}</p></div><p class="pill">+1 WIS</p>`,
+      foot: `<button class="btn mega" data-a="trial-sentence">${TRIAL.sentence.go}</button>
+        <button class="btn ghost" data-a="share-trial">SHARE THE VERDICT</button>
+        <button class="link" data-a="tab" data-to="home">${TRIAL.sentence.later}</button>`,
+    }),
+  };
+}
+
+VIEWS.trial.after = () => {
+  if (view.stage !== 'verdict' || !view.fresh) return;
+  view.fresh = false;
+  // The gavel.
+  sfx.boom();
+  shake();
+  buzz(40);
+  if (view.entry?.verdict !== 'continued') celebrate({ shape: 'star', motion: 'burst', count: 18 });
+};
+
+// A reason to come back tomorrow: brain court when it's next, otherwise what opens next, and when.
 function teaser() {
+  const ahead = trialAhead();
+  if (ahead) {
+    const t = TRIAL.levels[ahead.day];
+    const title = fill(ahead.how === 'soon' ? TRIAL.soonTitle : TRIAL.actTitle, { name: t.name });
+    return `<button class="teaser court" data-a="tab" data-to="receipts"><b>${title}</b><span>${ahead.how === 'soon' ? t.soon : TRIAL.act}</span></button>`;
+  }
   const d = days();
   const next = nextOpening(d);
   const label = next
@@ -707,7 +859,7 @@ function syncDraftLinks() {
 const STEPS = {
   thing: (L) => ({
     html: step({
-      title: 'WHAT ARE WE|OVERTHINKING?',
+      title: L.title || 'WHAT ARE WE|OVERTHINKING?',
       progress: PROGRESS.thing,
       body: `<textarea id="thing" class="field" rows="2" maxlength="140" placeholder="${esc(L.placeholder || (L.placeholder = fresh('placeholder', THING_PLACEHOLDERS).item))}" aria-label="What you’re overthinking" autofocus>${esc(L.thing)}</textarea>`,
       foot: `<button class="btn" id="next" data-a="thing-next" ${L.thing.trim() ? '' : 'disabled'}>NEXT</button>
@@ -1093,6 +1245,9 @@ VIEWS.close = () => {
   const stats = bailed ? 'NO PENALTY' : [intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join(' · ');
   const levelLines = bailed ? 'NO|PENALTY.' : [r.legendary ? 'LEGENDARY' : '', intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join('|');
   const overlay = fresh ? `<div class="levelup ${bailed ? 'sad' : `f-${flash || 'sun'}`}" id="levelup" data-a="skip-level">${big(levelLines, { max: 190, slam: true, center: true })}</div>` : '';
+  // The cliffhanger: brain court is tomorrow.
+  const ahead = trialAhead();
+  const court = ahead?.how === 'soon' ? ahead : null;
   return {
     html: `<main class="screen close">
       <div class="close-head">
@@ -1106,8 +1261,10 @@ VIEWS.close = () => {
       <p class="close-line">${esc(line || '')}</p>
       ${forgiven ? '<p class="forgiven">You skipped yesterday. Streak kept. A day off is a day off.</p>' : ''}
       ${drip ? dripCard(drip, after) : ''}
-      ${(view.firstEver || r.fu) && canNudge() && !S.nudge && !view.nudgeAsked ? `<div class="nudge-card">
-        <b>${r.fu ? FOLLOW_UP.offer[r.fu.type] : 'WANT A NUDGE TOMORROW?'}</b>
+      ${credMove(r)}
+      ${court ? `<div class="court-soon"><b>${fill(TRIAL.soonTitle, { name: TRIAL.levels[court.day].name })}</b><span>${TRIAL.levels[court.day].soon}</span></div>` : ''}
+      ${(view.firstEver || r.fu || court) && canNudge() && !S.nudge && !view.nudgeAsked ? `<div class="nudge-card">
+        <b>${court ? TRIAL.offer : r.fu ? FOLLOW_UP.offer[r.fu.type] : 'WANT A NUDGE TOMORROW?'}</b>
         <span>${r.fu ? FOLLOW_UP.offer.sub : 'One a day. Skipped if you’ve already done something.'}</span>
         <div class="chips">${[[15, 30, 'AFTER SCHOOL'], [18, 0, '6 PM'], [21, 0, '9 PM']].map(([h, m, label]) => `<button class="chip" data-a="nudge" data-h="${h}" data-m="${m}">${label}</button>`).join('')}<button class="chip" data-a="nudge" data-h="">NAH</button></div>
       </div>` : ''}
@@ -1122,6 +1279,15 @@ VIEWS.close = () => {
     </main>${overlay}`,
   };
 };
+
+// After the first hearing, every checked guess moves the brain's credibility, and the receipt says by how much.
+function credMove(r) {
+  if (!S.trials.length || !['lie', 'called', 'worse'].includes(C.exhibitFor(r)?.type)) return '';
+  const now = C.trialCase(S.receipts).cred;
+  const was = C.trialCase(S.receipts.filter((x) => x.id !== r.id)).cred;
+  if (now == null) return '';
+  return `<p class="cred-move">${TRIAL.cred} <b>${was == null || was === now ? `STILL ${now}%` : `${was}% → ${now}%`}</b></p>`;
+}
 
 // A new piece of drip: shown on the brain, one tap to put it on.
 function dripCard(id, w) {
@@ -1195,8 +1361,11 @@ VIEWS.receipts = () => {
         <button class="btn mega" data-a="start">${homeCta()}</button>`),
     };
   }
-  const forecast = stats.forecasts
-    ? `<div class="stat"><b>${stats.wrong} OF ${stats.forecasts}</b><span>times your brain lied</span></div>` : '';
+  // After the first hearing, the court's number; before it, the plain count.
+  const cred = S.trials.length ? C.trialCase(S.receipts).cred : null;
+  const forecast = cred != null
+    ? `<div class="stat"><b>${cred}%</b><span>brain credibility</span></div>`
+    : stats.forecasts ? `<div class="stat"><b>${stats.wrong} OF ${stats.forecasts}</b><span>times your brain lied</span></div>` : '';
   return {
     html: tabs('receipts', `${big('RECEIPTS', { max: 90 })}
       <div class="stats">
@@ -1654,6 +1823,8 @@ function refreshNudges() {
   // A follow-up that will be due goes out first. Lock screens are public, so never the thing or a name.
   const fu = C.followUpDue(S.receipts, C.dateKey(new Date(Date.now() + 86400000)));
   if (fu) lines.unshift(FOLLOW_UP.nudge[fu.fu.type]);
+  // Brain court beats everything on the day it's in session.
+  if (times[0] && C.trialDue(S.receipts, S.trials, C.dateKey(times[0]))) lines.unshift(TRIAL.nudge);
   return scheduleNudges(times, lines);
 }
 
@@ -2210,6 +2381,59 @@ const ACTIONS = {
     S.active = L;
     save();
     return go('loop');
+  },
+  trial: () => {
+    const lvl = trialToday();
+    if (!lvl) return render();
+    return go('trial', { day: lvl, stage: trialWitness() ? 'witness' : 'exhibits' });
+  },
+  // Yesterday's answer goes into evidence. The joke line still lands, as a toast.
+  'trial-witness': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    let line = '';
+    if (r?.fu) {
+      if (d.v === 'wait') {
+        r.fu.asks = (r.fu.asks || 0) + 1;
+        r.fu.snooze = C.dateKey();
+        line = FOLLOW_UP.wait;
+      } else {
+        r.fu.state = 'done';
+        r.fu.result = d.v;
+        const lines = FOLLOW_UP.answers[d.v] || FOLLOW_UP.answers.fine;
+        r.fu.line = fresh(`verdict-${d.v}`, lines.map((x) => x.a)).index;
+        line = lines[r.fu.line].a.replace(/\|/g, ' ');
+        S.wis += 1;
+      }
+      save();
+      refreshNudges();
+    }
+    go('trial', { day: view.day, stage: 'exhibits' });
+    if (line) toast(line);
+    return undefined;
+  },
+  'trial-verdict': () => {
+    if (!TRIAL.levels[view.day] || S.trials.some((t) => t.day === view.day)) return go('home');
+    const c = C.trialCase(S.receipts, lastTrialAt());
+    const prev = S.trials.length ? S.trials[S.trials.length - 1].cred : null;
+    const entry = { day: view.day, at: Date.now(), verdict: C.trialVerdict(c), lies: c.lies, calls: c.calls, cred: c.cred, prev, thoughtMin: c.thoughtMin, doneSec: c.doneSec };
+    S.trials.push(entry);
+    S.wis += 1;
+    save();
+    refreshNudges();
+    return go('trial', { day: view.day, stage: 'verdict', entry, fresh: true });
+  },
+  // The sentence: the one they've dodged longest, through the door check, since big ones deserve it.
+  'trial-sentence': () => {
+    if (view.entry?.verdict === 'continued') return startLoop({ source: 'trial' });
+    return startLoop({ source: 'trial', full: true, title: TRIAL.bigOne.title, placeholder: TRIAL.bigOne.placeholder });
+  },
+  'share-trial': () => {
+    const e = view.entry;
+    if (!e) return undefined;
+    const v = rulingFor(e);
+    const answer = [...v.title.split('|'), ...(e.cred != null ? [`${e.cred}% CREDIBLE`] : [])].join('|');
+    const text = [fill(TRIAL.share.text, { verdict: v.title.replace(/\|/g, ' ') }) + (e.cred != null ? ` Credibility: ${e.cred}%.` : ''), shareUrl()].filter(Boolean).join('\n');
+    return share(() => renderObjectionCard(TRIAL.share.q, answer), text, 'brain-court.png');
   },
   'share-verdict': () => {
     const r = S.receipts.find((x) => x.id === view.id);

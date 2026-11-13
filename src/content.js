@@ -66,6 +66,7 @@ export const THINK_TIMES = [
   { id: 'day', label: 'A DAY', minutes: 1440 },
   { id: 'days', label: 'A FEW DAYS', minutes: 4320 },
   { id: 'week', label: 'A WEEK', minutes: 10080 },
+  { id: 'weeks', label: 'TWO WEEKS', minutes: 20160 },
   { id: 'month', label: 'A MONTH', minutes: 43200 },
   { id: 'year', label: 'A YEAR OR MORE', minutes: 525600 },
 ];
@@ -901,4 +902,85 @@ export const FOLLOW_UP = {
   nudge: { reply: 'Did they answer? The brain needs to know.', retry: 'Round 2 is one button. You know the one.' },
   // Asked on the receipt, when there's something to follow up.
   offer: { reply: 'WANT THE VERDICT?', retry: 'ROUND 2 TOMORROW?', sub: 'One nudge a day. Skipped if you’ve already done something.' },
+};
+
+// ---------- brain court ----------
+// Day 3, 7, 14 and 30 of showing up. The evidence is the person's own receipts: what the brain said
+// it would be, and what it was. Disasters and crisis-flagged things never go to court (core.exhibitFor).
+export const TRIAL = {
+  levels: {
+    3: {
+      name: 'BRAIN COURT',
+      eyebrow: 'DAY 3 · SUMMONS',
+      card: 'YOUR BRAIN IS ON TRIAL.',
+      title: 'COURT IS|IN SESSION.',
+      sub: 'The People vs. your brain. The charge: lying to you about how bad things would go.',
+      soon: 'Your brain goes on trial for lying to you. We have receipts.',
+    },
+    7: {
+      name: 'THE APPEAL',
+      eyebrow: 'DAY 7 · APPEAL',
+      card: 'YOUR BRAIN APPEALED.',
+      title: 'THE BRAIN|APPEALED.',
+      sub: 'It says the last verdict was unfair. The court has new receipts.',
+      soon: 'Your brain appealed. Every receipt until then is evidence.',
+    },
+    14: {
+      name: 'SUPREME BRAIN COURT',
+      eyebrow: 'DAY 14 · LAST APPEAL',
+      card: 'SUPREME BRAIN COURT.',
+      title: 'SUPREME|BRAIN COURT.',
+      sub: 'Last appeal. The brain hired a lawyer. The lawyer is also the brain.',
+      soon: 'Last appeal. The brain hired a lawyer. Bring receipts.',
+    },
+    30: {
+      name: 'THE PAROLE HEARING',
+      eyebrow: 'DAY 30 · PAROLE HEARING',
+      card: 'YOUR BRAIN WANTS PAROLE.',
+      title: 'PAROLE|HEARING.',
+      sub: 'The brain says it’s a changed organ. Thirty days of receipts will decide.',
+      soon: 'The brain wants parole. It has not earned parole.',
+    },
+  },
+  cardSub: 'The evidence is your receipts. Takes a minute.',
+  open: 'START THE TRIAL',
+  witness: { eyebrow: 'BEFORE WE START: ONE MORE WITNESS' },
+  toVerdict: 'THE VERDICT',
+  stamps: { lie: 'LIED', called: 'CALLED IT', worse: 'UNDERSOLD IT', stall: 'STALLING', bail: 'BRAIN WINS', overturned: 'OVERTURNED' },
+  bail: 'You chickened out. The brain got this one.',
+  overturned: 'You chickened out. Then you did it anyway.',
+  // {lies} {calls} {total} {think} {did} are filled in by the app.
+  verdicts: {
+    guilty: { title: 'GUILTY.', sub: 'Your brain lied in {lies} of {total} cases. Everything it says is now hearsay.', tone: 'pink' },
+    split: { title: 'HALF|GUILTY.', sub: 'Right {calls}, wrong {lies}. Your brain is a coin with anxiety.', tone: 'sun' },
+    accurate: { title: 'NOT|GUILTY.', sub: 'It called {calls} of {total} cases. You did them anyway. Right, and it still lost.', tone: 'lime' },
+    stalling: { title: 'GUILTY OF|STALLING.', sub: '{think} of thinking. {did} of doing. The court has seen enough.', tone: 'orange' },
+    continued: { title: 'CASE|CONTINUED.', sub: 'Not enough evidence. Next time, tap how bad it’ll go before you do it, and the court can rule.', tone: 'blue' },
+  },
+  // Appeals and later hearings: same rulings, new words, so day 7 isn't a rerun of day 3.
+  again: {
+    guilty: { title: 'APPEAL|DENIED.', sub: 'Lied in {lies} of {total} cases. Still guilty. The brain would like to speak to a manager.', tone: 'pink' },
+    split: { title: 'HUNG|JURY.', sub: 'Right {calls}, wrong {lies}. Half liar, half weather app.', tone: 'sun' },
+    accurate: { title: 'APPEAL|GRANTED.', sub: 'It called {calls} of {total} cases. The brain is getting honest, and you did them anyway.', tone: 'lime' },
+  },
+  cred: 'BRAIN CREDIBILITY',
+  sentence: {
+    eyebrow: 'THE SENTENCE',
+    base: 'The brain sits this one out. You pick the one you’ve been dodging longest.',
+    accurate: 'The brain was right, and you did it anyway. Now do the one it’s loudest about.',
+    continued: 'Do one today. Tap how bad it’ll go first, so the court has something to rule on.',
+    again: 'Same deal as last time. You pick the one it’s still loudest about.',
+    go: 'NAME THE BIG ONE',
+    later: 'Not today',
+  },
+  // The thing screen, when the sentence sends you there.
+  bigOne: { title: 'THE ONE|YOU’VE DODGED|LONGEST.', placeholder: 'the thing you keep not doing' },
+  share: { q: 'Is my brain a liar?', text: 'My brain went on trial. Verdict: {verdict}.' },
+  // Home and the receipt, the day before a hearing.
+  soonTitle: 'TOMORROW: {name}',
+  actTitle: 'NEXT: {name}',
+  act: 'Do one thing today, and tomorrow your brain goes on trial.',
+  // Lock screens are public: no thing, no name.
+  nudge: 'Court is in session. Your brain is on trial today.',
+  offer: 'COURT IS TOMORROW. WANT A SUMMONS?',
 };
