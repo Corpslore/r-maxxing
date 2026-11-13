@@ -566,3 +566,32 @@ export function draftHints(text) {
 
 // Texting places get the lowercase version of a message by default.
 export const chatty = (text) => /\b(?:snap\w*|sc|dm'?d|dms?|dming|delivered|on read|gc|group ?chat|insta|ig|tiktok|discord|story|stories)\b/.test(norm(text));
+
+// ---------- day 2: following up ----------
+// What changes overnight is the answer. A message sent today gets "did they answer?" tomorrow, and
+// something bailed on today gets "round 2?". Never for one-way doors or anything the safety checks flag.
+export const FOLLOW_UP_DAYS = 3;
+
+export function followUpFor({ thing, outcome, draftKind, verdict }) {
+  if (verdict === 'think' || detectCrisis(thing) || detectCrisisCheck(thing) || detectOneWay(thing)) return null;
+  if (outcome === 'bailed') return { type: 'retry', state: 'open', asks: 0 };
+  if (draftKind && (outcome === 'did' || outcome === 'some')) return { type: 'reply', state: 'open', asks: 0 };
+  return null;
+}
+
+// The newest open follow-up from an earlier day, at most FOLLOW_UP_DAYS old. One at a time.
+export function followUpDue(receipts, today) {
+  for (const r of receipts || []) {
+    // "Not yet" puts it off until tomorrow.
+    if (!r.fu || r.fu.state !== 'open' || !r.at || r.fu.snooze === today) continue;
+    const age = dayDiff(dateKey(new Date(r.at)), today);
+    if (age >= 1 && age <= FOLLOW_UP_DAYS) return r;
+  }
+  return null;
+}
+
+// "yesterday", "2 days ago": how the card says when it happened.
+export const agoWord = (at, today) => {
+  const n = dayDiff(dateKey(new Date(at)), today);
+  return n <= 1 ? 'YESTERDAY' : `${n} DAYS AGO`;
+};

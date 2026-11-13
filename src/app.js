@@ -1,7 +1,7 @@
 import * as C from './core.js';
 import { SCENES } from './intro.js';
 import {
-  BAIL_LINES, BRAND, CHECK_QS, CLOSER, CONTEXT_LINES, DEFAULT_THINK_MOVE, DONE_LINES, DOOR, DREAD, HOME_CTA, HOME_CTA_QUIET, LATE_NIGHT, BOLD_DRAFTS, HARD_DARES, PRO_OBJECTIONS, INTRO, INTRO_CARDS,
+  BAIL_LINES, BRAND, CHECK_QS, CLOSER, CONTEXT_LINES, DEFAULT_THINK_MOVE, DONE_LINES, DOOR, DREAD, HOME_CTA, HOME_CTA_QUIET, LATE_NIGHT, FOLLOW_UP, BOLD_DRAFTS, HARD_DARES, PRO_OBJECTIONS, INTRO, INTRO_CARDS,
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
@@ -375,6 +375,7 @@ VIEWS.home = () => {
           <button class="mini" data-a="about" aria-label="About">?</button>
         </span>
       </header>
+      ${followUpCard()}
       <section class="hero">
         <button class="hero-brain" data-a="poke" aria-label="Poke the brain">${brainSVG(w, 'wobble')}${stickerSVG('NOT A THOUGHT ★ HEAD EMPTY ★ ')}<span class="bubble" aria-live="polite"></span></button>
         <h1 class="score">${w}% <small>WRINKLED${S.streak > 1 ? ` · DAY ${S.streak}` : ''}</small></h1>
@@ -420,12 +421,72 @@ function callMe(label = true) {
   return `<div class="callme">${label ? '<p class="eyebrow">WHAT DO WE CALL YOU?</p>' : ''}<div class="chips">${chips}</div></div>`;
 }
 
+// Day 2: what happened with the thing from yesterday. One card, newest first.
+function followUpCard() {
+  const today = C.dateKey();
+  const r = C.followUpDue(S.receipts, today);
+  if (!r) return '';
+  const ago = C.agoWord(r.at, today);
+  if (r.fu.type === 'reply') {
+    const q = r.to ? `DID ${r.to.toUpperCase()} ANSWER?` : 'DID THEY ANSWER?';
+    return `<div class="fu-card">
+      <p class="eyebrow">${ago} ${FOLLOW_UP.reply.eyebrow}</p>
+      <strong>${esc(q)}</strong>
+      <div class="fu-choices">${FOLLOW_UP.reply.choices.map(([v, label]) => `<button class="chip" data-a="fu-answer" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>
+    </div>`;
+  }
+  return `<div class="fu-card">
+    <p class="eyebrow">${ago} ${FOLLOW_UP.retry.eyebrow}</p>
+    <strong>${esc(r.thing)}</strong>
+    <div class="pair">
+      <button class="btn" data-a="fu-retry" data-id="${r.id}">${FOLLOW_UP.retry.go}</button>
+      <button class="btn ghost" data-a="fu-answer" data-id="${r.id}" data-v="did">${FOLLOW_UP.retry.did}</button>
+    </div>
+    <button class="link" data-a="fu-answer" data-id="${r.id}" data-v="skip">${FOLLOW_UP.retry.skip}</button>
+  </div>`;
+}
+
+// The answer, big, and shareable without the name in it.
+const verdictQ = (r, named) => (r.fu?.result === 'did' ? 'Remember the thing I chickened out of?' : `Did ${named && r.to ? r.to : 'they'} answer?`);
+VIEWS.verdict = () => {
+  const r = S.receipts.find((x) => x.id === view.id);
+  if (!r?.fu) return VIEWS.home();
+  const res = r.fu.result;
+  const ans = FOLLOW_UP.answers[res] || FOLLOW_UP.answers.fine;
+  // The prediction from yesterday, called out when the brain was wrong.
+  const lied = res === 'fine' && r.dread != null && r.dread >= 1;
+  const sub = lied ? `You said ${DREAD[r.dread]}. It was fine. Your brain lied again.` : ans.sub;
+  return {
+    tone: { fine: 'lime', weird: 'pink', read: 'blue', did: 'orange' }[res] || 'lime',
+    html: step({
+      title: ans.a,
+      max: 170,
+      center: true,
+      back: false,
+      top: '<div style="flex:1"></div>',
+      sub: esc(sub),
+      body: '<p class="pill">+1 WIS</p>',
+      slam: true,
+      foot: `<button class="btn mega" data-a="share-verdict">SHARE THIS</button>
+        <button class="btn ghost" data-a="tab" data-to="home">MOVE ON</button>`,
+    }).replace('<h1 class="fit', `<p class="whine">“${esc(verdictQ(r, true))}”</p><h1 class="fit`),
+  };
+};
+VIEWS.verdict.after = () => {
+  if (!view.fresh) return;
+  view.fresh = false;
+  sfx.boom();
+  shake();
+  buzz(40);
+  celebrate({ shape: 'star', motion: 'burst', count: 18 });
+};
+
 // A reason to come back tomorrow: what opens next, and when.
 function teaser() {
   const d = days();
   const next = nextOpening(d);
   const label = next
-    ? `<b>NEXT UNLOCK</b><span>${esc(next.kind === 'lessons' ? 'A new law' : 'A mission pack')} in ${dayWord(next.inDays)} of doing stuff</span>`
+    ? `<b>NEXT UNLOCK</b><span>Do one thing ${next.inDays === 1 ? 'tomorrow' : `on ${next.inDays} more days`} and ${next.kind === 'lessons' ? 'a new law' : 'a mission pack'} opens.</span>`
     : `<b>THE VAULT</b><span>${S.found.koans.length} of ${KOANS.length} koans collected. One a day.</span>`;
   return `<button class="teaser" data-a="tab" data-to="vault">${label}</button>`;
 }
@@ -910,6 +971,9 @@ function finishLoop() {
     day: C.dayNumber(today),
     n: S.receipts.length + 1,
     streak: L.outcome === 'bailed' ? 0 : S.streak,
+    kind: L.draftKind || null,
+    to: L.draftKind ? (L.draftName ?? C.draftHints(L.thing).name) || '' : '',
+    fu: C.followUpFor(L),
   };
   const line = closeLine(receipt, {
     capped: credit && !credit.counts ? credit.n : 0,
@@ -1034,9 +1098,9 @@ VIEWS.close = () => {
       <p class="close-line">${esc(line || '')}</p>
       ${forgiven ? '<p class="forgiven">You skipped yesterday. Streak kept. A day off is a day off.</p>' : ''}
       ${drip ? dripCard(drip, after) : ''}
-      ${view.firstEver && canNudge() && !S.nudge && !view.nudgeAsked ? `<div class="nudge-card">
-        <b>WANT A NUDGE TOMORROW?</b>
-        <span>One a day. Skipped if you’ve already done something.</span>
+      ${(view.firstEver || r.fu) && canNudge() && !S.nudge && !view.nudgeAsked ? `<div class="nudge-card">
+        <b>${r.fu ? FOLLOW_UP.offer[r.fu.type] : 'WANT A NUDGE TOMORROW?'}</b>
+        <span>${r.fu ? FOLLOW_UP.offer.sub : 'One a day. Skipped if you’ve already done something.'}</span>
         <div class="chips">${[[15, 30, 'AFTER SCHOOL'], [18, 0, '6 PM'], [21, 0, '9 PM']].map(([h, m, label]) => `<button class="chip" data-a="nudge" data-h="${h}" data-m="${m}">${label}</button>`).join('')}<button class="chip" data-a="nudge" data-h="">NAH</button></div>
       </div>` : ''}
       ${unlocked.map((u) => `<button class="unlock-card" data-a="${u.kind === 'lessons' ? 'lesson' : 'pack'}" data-id="${u.id}">
@@ -1578,7 +1642,11 @@ async function refreshPro() {
 function refreshNudges() {
   if (!canNudge() || !S.nudge) return Promise.resolve(false);
   const times = C.nudgeTimes({ hour: S.nudge.h, minute: S.nudge.m || 0, doneToday: S.lastDay === C.dateKey() });
-  return scheduleNudges(times, C.shuffled(NUDGE_LINES).map((l) => C.addr(l, S.who)));
+  const lines = C.shuffled(NUDGE_LINES).map((l) => C.addr(l, S.who));
+  // A follow-up that will be due goes out first. Lock screens are public, so never the thing or a name.
+  const fu = C.followUpDue(S.receipts, C.dateKey(new Date(Date.now() + 86400000)));
+  if (fu) lines.unshift(FOLLOW_UP.nudge[fu.fu.type]);
+  return scheduleNudges(times, lines);
 }
 
 // ---------- sharing ----------
@@ -2087,6 +2155,48 @@ const ACTIONS = {
   spin: () => spinDare(view.name === 'spin' && view.hard),
   'spin-hard': () => (S.pro ? spinDare(!view.hard) : go('shop', { from: 'home' })),
   'dare-go': () => prefilled(view.pick, 'dare'),
+  'fu-answer': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.fu) return undefined;
+    if (d.v === 'wait') {
+      r.fu.asks = (r.fu.asks || 0) + 1;
+      r.fu.snooze = C.dateKey();
+      save();
+      render();
+      return toast(FOLLOW_UP.wait);
+    }
+    if (d.v === 'skip') {
+      r.fu.state = 'skipped';
+      save();
+      refreshNudges();
+      render();
+      return toast(FOLLOW_UP.skip);
+    }
+    r.fu.state = 'done';
+    r.fu.result = d.v;
+    S.wis += 1;
+    save();
+    refreshNudges();
+    return go('verdict', { id: r.id, fresh: true });
+  },
+  'fu-retry': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.fu) return undefined;
+    r.fu.state = 'done';
+    r.fu.result = 'retry';
+    const L = newLoop({ thing: r.thing, source: 'retry', step: 'fast', verdict: 'send' });
+    L.move = suggestFor(L);
+    S.active = L;
+    save();
+    return go('loop');
+  },
+  'share-verdict': () => {
+    const r = S.receipts.find((x) => x.id === view.id);
+    if (!r?.fu) return undefined;
+    const ans = FOLLOW_UP.answers[r.fu.result] || FOLLOW_UP.answers.fine;
+    const q = verdictQ(r, false);
+    return share(() => renderObjectionCard(q, ans.a), C.objectionShareText(q, ans.a, shareUrl()), 'the-verdict.png');
+  },
   who: (d) => {
     S.who = C.ADDRESSES.some((a) => a.id === d.v) ? d.v : 'brother';
     save();

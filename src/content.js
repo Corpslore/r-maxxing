@@ -824,3 +824,30 @@ export const LATE_NIGHT = {
   yes: 'YES, QUIET',
   no: 'NO, LOUD',
 };
+
+// ---------- day 2 ----------
+// The next day, home asks how it went. The answers are the share moment.
+export const FOLLOW_UP = {
+  reply: {
+    eyebrow: 'YOU SENT IT',
+    choices: [['fine', 'YES. IT WAS FINE.'], ['weird', 'YES. IT WAS WEIRD.'], ['read', 'LEFT ON READ'], ['wait', 'NOT YET']],
+  },
+  retry: {
+    eyebrow: 'YOU CHICKENED OUT OF',
+    go: 'ROUND 2',
+    did: 'I DID IT ANYWAY',
+    skip: 'NOT TODAY',
+  },
+  answers: {
+    fine: { a: 'IT WAS|FINE.|OBVIOUSLY.', sub: 'All that thinking. One message.' },
+    weird: { a: 'IT WAS|WEIRD.|YOU LIVED.', sub: 'Weird lasts nine seconds. You did your part.' },
+    read: { a: 'THEIR|MOVE|NOW.', sub: 'You sent it. That was the whole job.' },
+    did: { a: 'DID IT|ANYWAY.', sub: 'Bailing is free. Coming back is legend behavior.' },
+  },
+  wait: 'Okay. We’ll ask again tomorrow.',
+  skip: 'No penalty. It’ll still be there when you are.',
+  // The reminder that goes out on the next day. Never the thing or a name: lock screens are public.
+  nudge: { reply: 'Did they answer? The brain needs to know.', retry: 'Round 2 is one button. You know the one.' },
+  // Asked on the receipt, when there's something to follow up.
+  offer: { reply: 'WANT THE VERDICT?', retry: 'ROUND 2 TOMORROW?', sub: 'One nudge a day. Skipped if you’ve already done something.' },
+};
