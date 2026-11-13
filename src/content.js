@@ -11,6 +11,8 @@ export const BRAND = {
 export const PUBLIC_URL = 'https://corpslore.github.io/r-maxxing/';
 
 export const CLOSER = 'At the end of the day, it’s the end of the day.';
+// Each receipt keeps the one it was printed with.
+export const CLOSERS = [CLOSER, 'No refunds on thinking.', 'Thinking: 0. Doing: 1.', 'The brain has been notified.', 'Keep this receipt. Or don’t. Not a thought.'];
 
 // The opener: tap-through cards like Stories, one idea each. `ms` is how long a card holds
 // before moving on by itself; the last card waits for the button. `then` slams in after a beat.
@@ -107,7 +109,7 @@ export const DEFAULT_THINK_MOVE = 'Write down the question, pick a date to decid
 
 // The first tiny step the fast lane suggests, picked by core.suggestKind from what you typed.
 export const MOVE_SUGGESTIONS = {
-  draft: 'Send it. Ugly is fine.',
+  draft: ['Write it ugly. Send it.', 'One message. Then phone down.', 'Send it before the brain votes.', 'Type it badly. Send it anyway.'],
   // After MAKE IT STUPID SMALL: a smaller version, not the same thing.
   shrinkDraft: 'Ask for the smallest piece of it. One line.',
   shrink: 'Do the 2-minute version you can take back.',
@@ -151,6 +153,14 @@ export const DRAFTS = [
     'ok who’s free [day] i’m in for [the plan]',
     'late to this but i’m in what time',
     'wait i’m down. when',
+  ] },
+  { id: 'family', label: 'FAMILY', subject: 'Hi', variants: [
+    'Hi! Sorry I’ve been hard to reach, this week was a lot. Can I call you [day] at [time]? Love you.',
+    'Hi! [Your answer.] Love you.',
+  ], casual: [
+    'hi!! sorry this week was insane. can i call u [day] at [time]? love u',
+    'sorry i keep missing u. calling [day], promise',
+    'hi! [your answer] love u',
   ] },
   { id: 'story', label: 'REPLY TO A STORY', subject: 'Your story', variants: [
     'Wait, where is this?',
@@ -229,6 +239,7 @@ export const DRAFTS = [
   ] },
   { id: 'recruiter', label: 'REPLY TO A RECRUITER', subject: 'Re: [role]', variants: [
     'Hi {name}, thanks for reaching out! I’m interested. I’m free [time 1] or [time 2] this week for a call. Does either work?',
+    'Hi {name}, thanks for thinking of me. Could you send the job description and the pay range? Happy to set up a call after.',
   ] },
   { id: 'meeting', label: 'ASK FOR A MEETING', subject: 'Quick chat this week?', variants: [
     'Hi {name}, do you have 20 minutes this week? I’d like your take on something I’m working on.',
@@ -240,8 +251,11 @@ export const DRAFTS = [
   ] },
   { id: 'roommate', label: 'ROOMMATE', subject: 'Quick thing', variants: [
     'Hey {name}, can we figure out the [dishes/cleaning/guests] thing? Not mad, I just want it to stop being a thing. Got 5 minutes tonight?',
+    'Hey {name}, can we set some ground rules for the [dishes/cleaning/guests] thing? I want us both to be comfortable in here.',
   ], casual: [
     'hey can we figure out the [dishes] thing? not mad just want it to stop being a thing',
+    'hey can we talk about the [dishes] thing tmrw? nothing big, just want us both to be ok with it',
+    'ok random but can we make a rule for the [dishes] thing',
   ] },
   { id: 'landlord', label: 'LANDLORD', subject: '[Issue] at [unit]', variants: [
     'Hi {name}, the [issue] in [unit] needs fixing. It started [when]. When could someone come take a look?',
@@ -252,9 +266,12 @@ export const DRAFTS = [
     'Hi, the item I bought didn’t work out for me. Can I get a refund?',
   ] },
   { id: 'reconnect', label: 'RECONNECT', subject: 'Long time', variants: [
+    'Hey {name}! Sorry it took me forever. [Your answer.] What’s new with you?',
     'Hey {name}, you crossed my mind today. How have you been?',
     'Hey {name}, it’s been way too long. What are you up to these days?',
   ], casual: [
+    'omg i’m so sorry i fell off the face of the earth. [your answer]',
+    'this is so late but [your answer]. how’ve u been',
     'u crossed my mind today. how’ve u been',
   ] },
 ];
@@ -773,6 +790,7 @@ export const BOLD_DRAFTS = {
   rec: ['Hi Professor {name}, I did my best work of the year in your [class]. I’m applying to [program or job], and you’re the person I want writing my recommendation. It’s due [date]. I’ll send everything you need today.'],
   job: ['Hi {name}, I applied for the [role] on [date]. I’m a strong fit and I want this job. What’s the next step?'],
   reacted: ['you saw that? good. [your comeback]'],
+  family: ['Hi! I’ve been dodging calls because this week was a lot. I’m calling you [day] at [time].'],
   coach: ['Coach {name}, I want more minutes. What do I need to show you this week?'],
   shift: ['Hi {name}, I can’t work [day] for the next [few weeks] because of [reason]. I can cover [another shift] instead.'],
   recruiter: ['Hi {name}, I’m interested. I’m free [time 1] or [time 2]. What’s the pay range for this role?'],
@@ -852,7 +870,8 @@ export const FOLLOW_UP = {
     choices: [['fine', 'YES. IT WAS FINE.'], ['weird', 'YES. IT WAS WEIRD.'], ['read', 'LEFT ON READ'], ['wait', 'NOT YET']],
   },
   retry: {
-    eyebrow: 'YOU CHICKENED OUT OF',
+    eyebrow: 'YOU CHICKENED OUT',
+    title: 'ROUND 2?',
     go: 'ROUND 2',
     did: 'I DID IT ANYWAY',
     skip: 'NOT TODAY',

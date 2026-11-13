@@ -1,7 +1,7 @@
 import * as C from './core.js';
 import { SCENES } from './intro.js';
 import {
-  BAIL_LINES, BRAND, CHECK_QS, CLOSER, CONTEXT_LINES, DEFAULT_THINK_MOVE, DONE_LINES, DOOR, DREAD, HOME_CTA, HOME_CTA_QUIET, LATE_NIGHT, FOLLOW_UP, BOLD_DRAFTS, HARD_DARES, PRO_OBJECTIONS, INTRO, INTRO_CARDS,
+  BAIL_LINES, BRAND, CHECK_QS, CLOSER, CLOSERS, CONTEXT_LINES, DEFAULT_THINK_MOVE, DONE_LINES, DOOR, DREAD, HOME_CTA, HOME_CTA_QUIET, LATE_NIGHT, FOLLOW_UP, BOLD_DRAFTS, HARD_DARES, PRO_OBJECTIONS, INTRO, INTRO_CARDS,
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
@@ -432,13 +432,14 @@ function followUpCard() {
     return `<div class="fu-card">
       <p class="eyebrow">${ago} ${FOLLOW_UP.reply.eyebrow}</p>
       <strong>${esc(q)}</strong>
-      <p class="fu-thing">${esc(r.thing)}</p>
+      <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}</button>
       <div class="fu-choices">${FOLLOW_UP.reply.choices.map(([v, label]) => `<button class="chip" data-a="fu-answer" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>
     </div>`;
   }
   return `<div class="fu-card">
     <p class="eyebrow">${ago} ${FOLLOW_UP.retry.eyebrow}</p>
-    <strong>${esc(r.thing)}</strong>
+    <strong>${FOLLOW_UP.retry.title}</strong>
+    <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}</button>
     <div class="pair">
       <button class="btn" data-a="fu-retry" data-id="${r.id}">${FOLLOW_UP.retry.go}</button>
       <button class="btn ghost" data-a="fu-answer" data-id="${r.id}" data-v="did">${FOLLOW_UP.retry.did}</button>
@@ -788,7 +789,7 @@ const STEPS = {
       html: step({
         title: think ? 'THE FIRST|10 MINUTES:' : 'FIRST|TINY STEP:',
         max: 96,
-        sub: L.source === 'free' ? esc(L.thing) : '',
+        sub: L.source === 'free' || L.source === 'retry' ? esc(L.thing) : '',
         progress: PROGRESS.fast,
         pin: true,
         body: `<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step">${esc(L.move)}</textarea>${draftCard}${dread}${chips}`,
@@ -816,7 +817,7 @@ const STEPS = {
             <button class="link" data-a="draft-calm">Calm it down</button>
             ${sellsPro() ? `<button class="link bold-link ${L.draftBold && S.pro ? 'on' : ''}" data-a="draft-bold" aria-pressed="${!!(L.draftBold && S.pro)}">${L.draftBold && S.pro ? 'Back to normal' : `Say it bold${S.pro ? '' : ' · PRO'}`}</button>` : ''}
           </div>
-          ${C.hasBlanks(text) ? '<p class="draft-note">Fill in the [brackets] before you send it.</p>' : ''}
+          <p class="draft-note" id="blank-note" ${C.hasBlanks(text) ? '' : 'hidden'}>Fill in the [brackets] before you send it.</p>
           ${kind.note ? `<p class="draft-note">${esc(kind.note)}</p>` : ''}`,
         foot: `<button class="btn mega" data-a="draft-go">COPY IT. START THE CLOCK.</button>
           <div class="pair">
@@ -866,7 +867,7 @@ const STEPS = {
 
   reality: (L) => ({
     html: step({
-      title: 'HOW BAD WAS IT|ACTUALLY?',
+      title: L.draftKind ? 'HOW BAD WAS|SENDING IT?' : 'HOW BAD WAS IT|ACTUALLY?',
       sub: `You said: ${DREAD[L.dread]}.`,
       progress: PROGRESS.reality,
       back: false,
@@ -979,6 +980,8 @@ function finishLoop() {
     kind: L.draftKind || null,
     to: L.draftKind ? (L.draftName ?? C.draftHints(L.thing).name) || '' : '',
     fu: C.followUpFor(L),
+    draft: L.draft || null,
+    closer: fresh('closer', CLOSERS).item,
   };
   const line = closeLine(receipt, {
     capped: credit && !credit.counts ? credit.n : 0,
@@ -1040,7 +1043,7 @@ function receiptHTML(r, showThing) {
     <div class="r-rows"><dl>${rows.map(([k, v]) => `<div class="r-row"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></div>
     <p class="r-big">${bigText}</p>
     <p class="r-label">${label}</p>
-    <p class="r-closer">${esc(CLOSER.toUpperCase())}</p>
+    <p class="r-closer">${esc((r.closer || CLOSER).toUpperCase())}</p>
   </div></div>`;
 }
 
@@ -1733,7 +1736,9 @@ function suggestFor(L) {
   if (L.draftCasual === undefined) L.draftCasual = C.chatty(L.thing);
   // After MAKE IT STUPID SMALL, a smaller version, not the same step.
   if (L.verdict === 'shrink') return MOVE_SUGGESTIONS[L.draftKind ? 'shrinkDraft' : 'shrink'];
-  return MOVE_SUGGESTIONS[C.suggestKind(L.thing, L.draftKind)];
+  const kind = L.draftKind === 'family' && /\bcall/.test(L.thing.toLowerCase()) ? 'call' : C.suggestKind(L.thing, L.draftKind);
+  const m = MOVE_SUGGESTIONS[kind];
+  return Array.isArray(m) ? fresh(`move-${kind}`, m).item : m;
 }
 
 function startDraftClock(copied) {
@@ -2124,6 +2129,7 @@ const ACTIONS = {
     if (d.act === 'dump') return ACTIONS.dump();
     if (d.act === 'home') return go('home');
     if (d.act === 'door') return ACTIONS['start-door']();
+    if (view.name === 'lesson' && view.id === 'when') return startLoop({ placeholder: 'when ___, i will ___' });
     return ACTIONS.start();
   },
   pack: (d) => (packOpen(d.id) ? go('pack', { id: d.id }) : undefined),
@@ -2162,6 +2168,7 @@ const ACTIONS = {
   spin: () => spinDare(view.name === 'spin' && view.hard),
   'spin-hard': () => (S.pro ? spinDare(!view.hard) : go('shop', { from: 'home' })),
   'dare-go': () => prefilled(view.pick, 'dare'),
+  'fu-peek': (_, el) => el.classList.toggle('shown'),
   'fu-answer': (d) => {
     const r = S.receipts.find((x) => x.id === d.id);
     if (!r?.fu) return undefined;
@@ -2195,6 +2202,11 @@ const ACTIONS = {
     r.fu.result = 'retry';
     const L = newLoop({ thing: r.thing, source: 'retry', step: 'fast', verdict: 'send' });
     L.move = suggestFor(L);
+    if (r.kind) L.draftKind = r.kind;
+    if (r.draft) {
+      L.draft = r.draft;
+      L.draftEdited = true;
+    }
     S.active = L;
     save();
     return go('loop');
@@ -2424,6 +2436,7 @@ root.addEventListener('click', (e) => {
 root.addEventListener('input', (e) => {
   const t = e.target;
   if (['thing', 'move', 'draft'].includes(t.id)) grow(t);
+  if (t.id === 'draft') document.getElementById('blank-note')?.toggleAttribute('hidden', !C.hasBlanks(t.value));
   if (!S.active) return;
   if (t.id === 'thing' || t.id === 'move') {
     S.active[t.id] = t.value;

@@ -731,3 +731,7 @@ a.btn { text-decoration: none; }
 .fu-thing { margin: 4px 0 0; font-weight: 700; font-size: 14px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .share-scan { margin-top: 14px; }
 .timer-links { display: flex; justify-content: center; gap: 22px; }
+
+/* What it was stays blurred on the home screen until tapped. */
+.fu-thing.peek { display: block; width: 100%; text-align: left; padding: 2px 0; background: none; border: 0; font: inherit; font-weight: 700; font-size: 14px; color: var(--mute); filter: blur(6px); cursor: pointer; }
+.fu-thing.peek.shown { filter: none; }

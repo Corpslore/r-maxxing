@@ -334,6 +334,8 @@ const DRAFT_PATTERNS = [
   ['coach', /\bcoach\b/],
   ['shift', /^(?=.*\b(?:shifts?|schedule|clos(?:e|es|ing)|opens|opening shifts?|time off|days? off|(?:mon|tues|wednes|thurs|fri|satur|sun)days? off|take me off|hours|cover for)\b)(?=.*\b(?:manager|boss|supervisor|work|job|shift lead)\b)/],
   ['meeting', /\b(?:meeting|1:1|one[\s-]on[\s-]one|boss|manager|raise|promotion)\b/],
+  ['family', /\b(?:mom|mum|mama|momma|dad|papa|parents?|grandma|grandpa|nana|abuela|abuelo)\b/],
+  ['reconnect', /\b(?:(?:\d+|two|three|a few|a couple(?: of)?)\s+(?:weeks?|months?|years?)\s+ago|been (?:so long|forever|a while|ages)|in (?:weeks|months|forever|ages))\b/],
   ['reply', /\b(?:(?:snapped|texted|messaged|dm'?d|dmed) me|on (?:delivered|read)|left (?:him|her|them|it) on|haven'?t (?:replied|answered|responded|texted back)|didn'?t (?:reply|answer|respond|text back)|never (?:replied|answered|texted back)|(?:idk|don'?t know) what to (?:say|text|reply|send)|what to say back|(?:text|texted|texting|message|messaged|messaging|dm|dming|snap|snapped|snapping|email|emailing|write|writing|call|calling)\s+(?:\w+\s+){0,2}back|text(?:ing)?\s+(?:him|her|them|my\s+\w+)|repl(?:y|ying)|respond\w*|get(?:ting)? back to|answer\w*\s+(?:the |her |his |their |my |that )?(?:text|message|email|dm|snap))\b/],
   ['reconnect', /\b(?:reach(?:ing)? out|reconnect\w*|haven't (?:talked|spoken)|old friend|been (?:a while|forever))\b/],
   ['issue', /\b(?:bring(?:ing)? (?:it |this |that )?up|say (?:the|that) (?:annoying|hard|awkward) thing|talk(?:ing)? to (?:him|her|them) about|bother(?:s|ing) me)\b/],
@@ -356,6 +358,7 @@ export function fillDraft(template, name, hints = {}) {
   let t = n && TITLED.test(n) ? template.replace(/\b(?:Professor|Coach) \{name\}/g, '{name}') : template;
   t = n ? t.replace(/\{name\}/g, n) : t.replace(/ \{name\}/g, '').replace(/\{name\}/g, '');
   if (hints.when) t = t.replace(/\[(?:date|day|day\/time)\]/gi, hints.when);
+  if (hints.topic) t = t.replace(/\[dishes[^\]]*\]/gi, hints.topic);
   return t;
 }
 
@@ -544,12 +547,18 @@ export function addr(text, who = 'brother', max = Infinity) {
 const MONTHS = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
 const WHEN_RE = new RegExp(`\\b(?:(${MONTHS})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b|(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|this weekend|next week)\\b)`);
 const TITLE_RE = /\b(mr|mrs|ms|mx|miss|dr|coach|professor|prof)\.?\s+([a-z][a-z'-]{1,20})\b/;
-const SENDER_RE = /\b([a-z][a-z'-]{1,20})(?:\s+from\s+[a-z]+)?\s+(?:(?:snapped|texted|messaged|dm'?d|dmed|called|asked)\s+me\b|(?:replied|reacted|commented|responded)\b)/;
-const NOT_A_NAME = new Set(['why', 'what', 'when', 'where', 'how', 'about', 'said', 'says', 'told', 'is', 'was', 'to', 'for', 'if', 'me',
+const SENDER_RE = /\b([a-z][a-z'-]{1,20})(?:\s+from\s+[a-z]+)?\s+(?:(?:snapped|texted|messaged|dm'?d|dmed|called|asked)(?:\s+me)?\b|(?:replied|reacted|commented|responded)\b)/;
+const NOT_A_NAME = new Set(['havent', "haven't", 'hasnt', "hasn't", 'cant', "can't", 'coach', 'roommate', 'bestie', 'crush', 'ex', 'sister',
+  'brother', 'cousin', 'aunt', 'uncle', 'asked', 'texted', 'called', 'messaged', 'replied', 'snapped', 'needs', 'keeps', 'has', 'had', 'just', 'why', 'what', 'when', 'where', 'how', 'about', 'said', 'says', 'told', 'is', 'was', 'to', 'for', 'if', 'me',
   'the', 'a', 'an', 'on', 'at', 'in', 'i', 'you', 'we', 'didnt', "didn't", 'wont', "won't", 'cut', 'benched', 'yelled', 'gave', 'after', 'before',
   'wants', 'thinks', 'class', 'history', 'chem', 'math', 'english', 'practice', 'team', 'from', 'he', 'she', 'they', 'someone', 'somebody', 'everyone', 'nobody', 'who', 'it', 'this', 'that', 'my', 'mom', 'dad',
   'boss', 'manager', 'friend', 'guy', 'girl', 'teacher', 'just', 'finally', 'literally', 'also', 'and', 'but', 'so', 'then', 'still', 'never', 'already', 'once', 'again']);
 const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+const ROOM_TOPICS = [
+  ['boyfriend', /\b(?:boyfriend|bf)\b/], ['girlfriend', /\b(?:girlfriend|gf)\b/], ['guests', /\b(?:guests?|people over|sleep(?:ing)? ?over|sleepovers?)\b/],
+  ['noise', /\b(?:noise|loud|music)\b/], ['dishes', /\bdishes\b/], ['bathroom', /\bbathroom\b/], ['trash', /\b(?:trash|garbage)\b/],
+  ['thermostat', /\b(?:thermostat|temperature|heat|ac)\b/], ['cleaning', /\b(?:mess|messy|cleaning|clean)\b/],
+];
 
 export function draftHints(text) {
   const t = norm(text);
@@ -565,11 +574,14 @@ export function draftHints(text) {
   let when = '';
   const w = WHEN_RE.exec(t);
   if (w) when = w[1] ? `${cap(w[1].slice(0, 3))} ${Number(w[2])}` : /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/.test(w[3]) ? cap(w[3]) : w[3];
-  return { name, when };
+  // Only about a shared room: "clean my room" isn't a roommate talk.
+  const shared = /\b(?:roommates?|suitemates?|dorm|our room|our apartment|housemates?)\b/.test(t);
+  const topic = shared ? (ROOM_TOPICS.find(([, re]) => re.test(t)) || [''])[0] : '';
+  return topic ? { name, when, topic } : { name, when };
 }
 
 // Texting places get the lowercase version of a message by default.
-export const chatty = (text) => /\b(?:snap\w*|sc|dm'?d|dms?|dming|delivered|on read|gc|group ?chat|insta|ig|tiktok|discord|story|stories)\b/.test(norm(text));
+export const chatty = (text) => /\b(?:texted|texting|snap\w*|sc|dm'?d|dms?|dming|delivered|on read|gc|group ?chat|insta|ig|tiktok|discord|story|stories)\b/.test(norm(text));
 
 // ---------- day 2: following up ----------
 // What changes overnight is the answer. A message sent today gets "did they answer?" tomorrow, and

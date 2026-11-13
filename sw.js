@@ -1,5 +1,5 @@
 // Offline support. Bump VERSION whenever a cached file changes.
-const VERSION = 'rmaxxing-v16';
+const VERSION = 'rmaxxing-v17';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest',
   'privacy.html', 'support.html',

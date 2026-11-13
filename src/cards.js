@@ -225,17 +225,17 @@ function barcode(ctx, x, y, w, h) {
 
 // gold: the legendary receipt. Black card, gold paper, a banner on top.
 // skin: { paper, ink, mute } for a receipt skin. Gold wins over any skin.
-function receiptFrame(sub, rows, bigText, bigLabel, { gold = false, skin = null } = {}) {
+function receiptFrame(sub, rows, bigText, bigLabel, { gold = false, skin = null, closer = CLOSER } = {}) {
   const saved = [INK, WHITE, MUTE];
   if (skin && !gold) [INK, WHITE, MUTE] = [skin.ink, skin.paper, skin.mute];
   try {
-    return drawReceipt(sub, rows, bigText, bigLabel, gold);
+    return drawReceipt(sub, rows, bigText, bigLabel, gold, closer);
   } finally {
     [INK, WHITE, MUTE] = saved;
   }
 }
 
-function drawReceipt(sub, rows, bigText, bigLabel, gold) {
+function drawReceipt(sub, rows, bigText, bigLabel, gold, closerText = CLOSER) {
   const [c, ctx] = canvas(1080, 1920, gold ? '#0B0B0B' : SUN);
   const left = 170;
   const right = 910;
@@ -256,7 +256,7 @@ function drawReceipt(sub, rows, bigText, bigLabel, gold) {
   });
   const rowsH = blocks.reduce((h, b) => h + (b ? 52 + b.length * 48 + 28 : 74), 0);
   ctx.font = `500 30px ${MONO}`;
-  const closer = lines(ctx, CLOSER.toUpperCase(), maxW);
+  const closer = lines(ctx, closerText.toUpperCase(), maxW);
   const bigSize = fitSize(ctx, bigText, maxW, 210);
   const paperH = 268 + rowsH + bigSize * 1.08 + 54 + 42 + 62 + closer.length * 42 + 12 + 78 + 106;
   const top = Math.max(200, Math.round((1920 - paperH) / 2));
@@ -328,7 +328,7 @@ export function renderReceiptCard(r, showThing, skin = null) {
   const x = bailed ? null : ratio(r.thoughtMin, r.doneSec);
   const big = bailed ? 'CHICKENED OUT' : x ? fmtRatio(x) : 'DONE';
   const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? 'THINKING TO DOING' : 'THAT’S THE WHOLE THING';
-  return receiptFrame(`RECEIPT #${r.day}   ${stamp(r.at)}`, rows, big, label, { gold: !!r.legendary, skin });
+  return receiptFrame(`RECEIPT #${r.n ?? r.day}   ${stamp(r.at)}`, rows, big, label, { gold: !!r.legendary, skin, closer: r.closer || CLOSER });
 }
 
 export function renderLifetimeCard(stats, wrinkled, wis, at = Date.now()) {
