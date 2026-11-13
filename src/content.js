@@ -133,10 +133,21 @@ export const DRAFTS = [
     'late but yes to [the thing] lol. u around this week',
     'sorry i’m so late on this. [your answer]',
   ] },
+  { id: 'reacted', label: 'THEY REPLIED TO YOUR STORY', subject: 'Your story', variants: [
+    'Ha, you saw that. [What happened.]',
+    'Okay, you caught that. [Your comeback.]',
+  ], casual: [
+    'lmaooo you weren’t supposed to see that',
+    'ok you caught that 💀 [what happened]',
+    'lol [your comeback]',
+  ] },
   { id: 'group', label: 'GROUP CHAT', subject: 'Plans', variants: [
+    'Sorry I’ve been quiet. My part is coming [day].',
     'Okay who’s free [day]? I’m in for [the plan].',
     'Late to this but I’m in. What time?',
   ], casual: [
+    'sorry been mia. my part is coming [day]',
+    'on it. sending my [part] by [time]',
     'ok who’s free [day] i’m in for [the plan]',
     'late to this but i’m in what time',
     'wait i’m down. when',
@@ -164,6 +175,37 @@ export const DRAFTS = [
     'ok random but do u wanna hang out this week',
     'we should get food sometime. thursday?',
   ] },
+  { id: 'apology', label: 'APOLOGIZE', subject: 'I’m sorry', variants: [
+    'Hey {name}, I’ve been thinking about what happened. I’m sorry. You didn’t deserve that.',
+    'Hey {name}, I owe you an apology. I got that wrong, and I’m sorry. No excuses.',
+  ], casual: [
+    'hey i was wrong about [the thing]. i’m sorry',
+  ] },
+  { id: 'decline', label: 'SAY NO', subject: 'Can’t make it', variants: [
+    'Hey {name}, I’m going to pass on this one, but thank you for thinking of me.',
+    'Hey {name}, I can’t make it after all. Sorry for the short notice.',
+  ], casual: [
+    'can’t make it this time but have fun',
+    'gonna pass on this one but ty for inviting me',
+  ] },
+  { id: 'favor', label: 'ASK A FAVOR', subject: 'Quick favor', variants: [
+    'Hey {name}, could I ask you a favor? Totally fine to say no.',
+    'Hey {name}, I could use a hand with something this week. Any chance you’re free for an hour?',
+  ], casual: [
+    'can i ask u a favor? totally fine if not',
+  ] },
+  { id: 'issue', label: 'BRING IT UP', subject: 'Quick talk?', variants: [
+    'Hey {name}, can we talk about something small before it turns into something big? Nothing dramatic.',
+    'Hey {name}, something’s been on my mind and I’d rather just say it. Got a few minutes later?',
+  ], casual: [
+    'hey can we talk about something small before it’s a big thing. nothing dramatic',
+  ] },
+  { id: 'coach', label: 'ASK COACH', subject: 'Quick question', variants: [
+    'Hey Coach {name}, could I get a few minutes after practice? I want to know what I can work on to earn more playing time.',
+    'Hey Coach {name}, what’s one thing I can do better this week to get more minutes?',
+  ], casual: [
+    'hey coach, can i talk to you after practice for a sec? want to know what to work on',
+  ] },
   { id: 'prof', label: 'EMAIL A PROFESSOR', subject: 'Question about [class]', variants: [
     'Hi Professor {name}, I’m in your [class] section. I’m behind on [assignment] and wanted to ask for an extension to [day]. I can have it to you by then. Thank you for considering it.',
     'Hi Professor {name}, I’m stuck on [topic] from [class]. Could I come to office hours [day/time], or is there a better time?',
@@ -173,10 +215,6 @@ export const DRAFTS = [
     'Hi {name}, I’m applying to [colleges or program], and you know my work better than anyone. Would you be willing to write me a recommendation? It’s due [date]. I can send my resume and anything else that helps. Thank you!',
     'Hi Professor {name}, I took your [class] in [semester] and really liked it. I’m applying to [program or job], and I’d be grateful if you’d write me a recommendation. It’s due [date]. I can send my resume and anything else that helps. Totally understand if you can’t.',
   ] },
-  { id: 'job', label: 'JOB FOLLOW-UP', subject: 'Following up on my application', variants: [
-    'Hi {name}, I applied for the [role] position on [date] and wanted to check in. I’m still very interested and happy to send anything else you need. Thank you!',
-    'Hi {name}, thanks again for talking with me about the [role]. I enjoyed it and I’m still very interested. Is there anything else I can send?',
-  ] },
   { id: 'shift', label: 'WORK SCHEDULE', subject: 'Schedule request', variants: [
     'Hi {name}, could I come off [day] shifts for the next [few weeks]? I have [reason]. Happy to pick up [another shift] instead.',
     'Hi {name}, I need [day] off for [reason]. I can swap with someone or pick up [another shift]. Does that work?',
@@ -184,6 +222,10 @@ export const DRAFTS = [
   ], casual: [
     'hey! could i get off [day] shifts for the next [few weeks]? i have [reason]. i can pick up [another shift]',
     'hey can i get [day] off? i can swap or pick up [another shift]',
+  ] },
+  { id: 'job', label: 'JOB FOLLOW-UP', subject: 'Following up on my application', variants: [
+    'Hi {name}, I applied for the [role] position on [date] and wanted to check in. I’m still very interested and happy to send anything else you need. Thank you!',
+    'Hi {name}, thanks again for talking with me about the [role]. I enjoyed it and I’m still very interested. Is there anything else I can send?',
   ] },
   { id: 'recruiter', label: 'REPLY TO A RECRUITER', subject: 'Re: [role]', variants: [
     'Hi {name}, thanks for reaching out! I’m interested. I’m free [time 1] or [time 2] this week for a call. Does either work?',
@@ -205,40 +247,15 @@ export const DRAFTS = [
     'Hi {name}, the [issue] in [unit] needs fixing. It started [when]. When could someone come take a look?',
     'Hi {name}, following up on the [issue] I reported on [date]. Is there an update on when it’ll be fixed?',
   ] },
-  { id: 'apology', label: 'APOLOGIZE', subject: 'I’m sorry', variants: [
-    'Hey {name}, I’ve been thinking about what happened. I’m sorry. You didn’t deserve that.',
-    'Hey {name}, I owe you an apology. I got that wrong, and I’m sorry. No excuses.',
-  ], casual: [
-    'hey i was wrong about [the thing]. i’m sorry',
-  ] },
-  { id: 'decline', label: 'SAY NO', subject: 'Can’t make it', variants: [
-    'Hey {name}, I’m going to pass on this one, but thank you for thinking of me.',
-    'Hey {name}, I can’t make it after all. Sorry for the short notice.',
-  ], casual: [
-    'can’t make it this time but have fun',
-    'gonna pass on this one but ty for inviting me',
-  ] },
   { id: 'refund', label: 'ASK FOR A REFUND', subject: 'Refund request', variants: [
     'Hi, I’d like to request a refund for my recent order. What do you need from me to process it?',
     'Hi, the item I bought didn’t work out for me. Can I get a refund?',
-  ] },
-  { id: 'favor', label: 'ASK A FAVOR', subject: 'Quick favor', variants: [
-    'Hey {name}, could I ask you a favor? Totally fine to say no.',
-    'Hey {name}, I could use a hand with something this week. Any chance you’re free for an hour?',
-  ], casual: [
-    'can i ask u a favor? totally fine if not',
   ] },
   { id: 'reconnect', label: 'RECONNECT', subject: 'Long time', variants: [
     'Hey {name}, you crossed my mind today. How have you been?',
     'Hey {name}, it’s been way too long. What are you up to these days?',
   ], casual: [
     'u crossed my mind today. how’ve u been',
-  ] },
-  { id: 'issue', label: 'BRING IT UP', subject: 'Quick talk?', variants: [
-    'Hey {name}, can we talk about something small before it turns into something big? Nothing dramatic.',
-    'Hey {name}, something’s been on my mind and I’d rather just say it. Got a few minutes later?',
-  ], casual: [
-    'hey can we talk about something small before it’s a big thing. nothing dramatic',
   ] },
 ];
 
@@ -254,9 +271,9 @@ export const DREAD = ['Fine', 'Awkward', 'Bad', 'Disaster'];
 
 export const THING_PLACEHOLDERS = [
   'texting them back', 'that email', 'going to the gym', 'posting the video', 'asking for the meeting',
-  'replying to the group chat', 'calling the landlord', 'the laundry', 'cancelling that subscription',
-  'the first sentence', 'saying hi to the neighbor', 'returning the package', 'booking the haircut',
-  'cleaning the kitchen', 'answering the voicemail', 'asking for a raise',
+  'replying to the group chat', 'replying to their story', 'the laundry', 'asking coach a question',
+  'the first sentence of the essay', 'saying hi first', 'returning the package', 'sending my part of the project',
+  'cleaning my room', 'answering the voicemail', 'asking for the day off',
 ];
 
 // One a day, the same for everyone, collected in the Vault. Add new ones at the end.
@@ -755,6 +772,8 @@ export const BOLD_DRAFTS = {
   prof: ['Hi Professor {name}, I’m in your [class] section. I need an extension on [assignment] until [day], and I’ll have it to you by then. Thank you.', 'Hi Professor {name}, I’ll be at office hours [day] to go over [topic]. See you then.'],
   rec: ['Hi Professor {name}, I did my best work of the year in your [class]. I’m applying to [program or job], and you’re the person I want writing my recommendation. It’s due [date]. I’ll send everything you need today.'],
   job: ['Hi {name}, I applied for the [role] on [date]. I’m a strong fit and I want this job. What’s the next step?'],
+  reacted: ['you saw that? good. [your comeback]'],
+  coach: ['Coach {name}, I want more minutes. What do I need to show you this week?'],
   shift: ['Hi {name}, I can’t work [day] for the next [few weeks] because of [reason]. I can cover [another shift] instead.'],
   recruiter: ['Hi {name}, I’m interested. I’m free [time 1] or [time 2]. What’s the pay range for this role?'],
   meeting: ['Hi {name}, I’d like 20 minutes this week to talk about [topic]. Does [day] work?'],
@@ -839,10 +858,23 @@ export const FOLLOW_UP = {
     skip: 'NOT TODAY',
   },
   answers: {
-    fine: { a: 'IT WAS|FINE.|OBVIOUSLY.', sub: 'All that thinking. One message.' },
-    weird: { a: 'IT WAS|WEIRD.|YOU LIVED.', sub: 'Weird lasts nine seconds. You did your part.' },
-    read: { a: 'THEIR|MOVE|NOW.', sub: 'You sent it. That was the whole job.' },
-    did: { a: 'DID IT|ANYWAY.', sub: 'Bailing is free. Coming back is legend behavior.' },
+    fine: [
+      { a: 'IT WAS|FINE.|OBVIOUSLY.', sub: 'All that thinking. One message.' },
+      { a: 'FINE.|AGAIN.|SHOCKING.', sub: 'The brain is 0 for everything on this one.' },
+      { a: 'NOTHING|BAD|HAPPENED.', sub: 'Write that down. Actually don’t. Just remember it.' },
+    ],
+    weird: [
+      { a: 'IT WAS|WEIRD.|YOU LIVED.', sub: 'Weird lasts nine seconds. You did your part.' },
+      { a: 'WEIRD IS|STILL|A REPLY.', sub: 'Awkward and sent beats perfect and in your notes app.' },
+    ],
+    read: [
+      { a: 'THEIR|MOVE|NOW.', sub: 'You sent it. That was the whole job.' },
+      { a: 'BALL’S IN|THEIR|COURT.', sub: 'You shot your shot. Their stats, not yours.' },
+    ],
+    did: [
+      { a: 'DID IT|ANYWAY.', sub: 'Bailing is free. Coming back is legend behavior.' },
+      { a: 'ROUND 2.|K.O.', sub: 'Chickened out, came back, did it. That’s the whole method.' },
+    ],
   },
   wait: 'Okay. We’ll ask again tomorrow.',
   skip: 'No penalty. It’ll still be there when you are.',

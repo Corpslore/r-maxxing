@@ -727,3 +727,7 @@ a.btn { text-decoration: none; }
 .fu-card .pair { margin-top: 12px; }
 .fu-card .pair .btn { min-height: 50px; font-size: 18px; }
 .fu-card .link { display: block; margin: 8px auto 0; }
+
+.fu-thing { margin: 4px 0 0; font-weight: 700; font-size: 14px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-scan { margin-top: 14px; }
+.timer-links { display: flex; justify-content: center; gap: 22px; }

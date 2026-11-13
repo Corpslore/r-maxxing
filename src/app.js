@@ -378,7 +378,7 @@ VIEWS.home = () => {
       ${followUpCard()}
       <section class="hero">
         <button class="hero-brain" data-a="poke" aria-label="Poke the brain">${brainSVG(w, 'wobble')}${stickerSVG('NOT A THOUGHT ★ HEAD EMPTY ★ ')}<span class="bubble" aria-live="polite"></span></button>
-        <h1 class="score">${w}% <small>WRINKLED${S.streak > 1 ? ` · DAY ${S.streak}` : ''}</small></h1>
+        <h1 class="score">${w}% <small>WRINKLED${S.streak > 1 ? ` · ${S.streak}-DAY STREAK` : ''}</small></h1>
         ${statBars(w, S.wis)}
         ${S.receipts.length < 3 ? '<p class="lower-better">LOWER IS BETTER. 0% IS THE DREAM.</p>' : ''}
       </section>
@@ -432,6 +432,7 @@ function followUpCard() {
     return `<div class="fu-card">
       <p class="eyebrow">${ago} ${FOLLOW_UP.reply.eyebrow}</p>
       <strong>${esc(q)}</strong>
+      <p class="fu-thing">${esc(r.thing)}</p>
       <div class="fu-choices">${FOLLOW_UP.reply.choices.map(([v, label]) => `<button class="chip" data-a="fu-answer" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>
     </div>`;
   }
@@ -448,11 +449,15 @@ function followUpCard() {
 
 // The answer, big, and shareable without the name in it.
 const verdictQ = (r, named) => (r.fu?.result === 'did' ? 'Remember the thing I chickened out of?' : `Did ${named && r.to ? r.to : 'they'} answer?`);
+const verdictLine = (r) => {
+  const list = FOLLOW_UP.answers[r.fu.result] || FOLLOW_UP.answers.fine;
+  return list[(r.fu.line || 0) % list.length];
+};
 VIEWS.verdict = () => {
   const r = S.receipts.find((x) => x.id === view.id);
   if (!r?.fu) return VIEWS.home();
   const res = r.fu.result;
-  const ans = FOLLOW_UP.answers[res] || FOLLOW_UP.answers.fine;
+  const ans = verdictLine(r);
   // The prediction from yesterday, called out when the brain was wrong.
   const lied = res === 'fine' && r.dread != null && r.dread >= 1;
   const sub = lied ? `You said ${DREAD[r.dread]}. It was fine. Your brain lied again.` : ans.sub;
@@ -486,7 +491,7 @@ function teaser() {
   const d = days();
   const next = nextOpening(d);
   const label = next
-    ? `<b>NEXT UNLOCK</b><span>Do one thing ${next.inDays === 1 ? 'tomorrow' : `on ${next.inDays} more days`} and ${next.kind === 'lessons' ? 'a new law' : 'a mission pack'} opens.</span>`
+    ? `<b>NEXT UNLOCK</b><span>Do one thing ${next.inDays === 1 ? (S.lastDay === C.dateKey() ? 'tomorrow' : 'today') : `on ${next.inDays} more days`} and ${next.kind === 'lessons' ? 'a new law' : 'a mission pack'} opens.</span>`
     : `<b>THE VAULT</b><span>${S.found.koans.length} of ${KOANS.length} koans collected. One a day.</span>`;
   return `<button class="teaser" data-a="tab" data-to="vault">${label}</button>`;
 }
@@ -591,17 +596,17 @@ VIEWS.quizResult = () => {
     tone: 'sun',
     html: `<section class="step">
       <div class="step-body center">
-        ${big(`${S.w}%|WRINKLED`, { max: 150, center: true, slam: true })}
+        ${big(`${S.w}%|WRINKLED`, { max: 120, center: true, slam: true })}
         <div class="result-brain">${brainSVG(S.w, 'wobble')}</div>
         <p class="pill">${esc(t.name)}</p>
         ${statBars(S.w, S.wis)}
         <p class="sub center-text">${esc(t.roast)} You took ${secs} second${secs === 1 ? '' : 's'}. One question was about tacos.</p>
         ${vs}
         ${callMe()}
+        <button class="btn ghost share-scan" data-a="share-quiz">SHARE MY SCAN</button>
       </div>
       <footer class="step-foot pinned">
         <button class="btn mega" data-a="start">${homeCta()}</button>
-        <button class="btn ghost" data-a="share-quiz">SHARE MY SCAN</button>
       </footer>
     </section>`,
   };
@@ -786,7 +791,7 @@ const STEPS = {
         sub: L.source === 'free' ? esc(L.thing) : '',
         progress: PROGRESS.fast,
         pin: true,
-        body: `<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step">${esc(L.move)}</textarea>${chips}${draftCard}${dread}`,
+        body: `<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step">${esc(L.move)}</textarea>${draftCard}${dread}${chips}`,
         foot: `<button class="btn mega" id="next" data-a="fast-go" ${L.move.trim() ? '' : 'disabled'}>GO</button>`,
       }),
     };
@@ -839,7 +844,7 @@ const STEPS = {
           ${running ? '' : '<button class="link" data-a="objection">But what if…</button>'}
           <p class="sub center-text" id="clock-note"></p>`,
         foot: running
-          ? `<button class="btn mega" data-a="timer-done">DONE</button><button class="link" data-a="timer-bail">I chickened out</button>`
+          ? `<button class="btn mega" data-a="timer-done">DONE</button><div class="timer-links"><button class="link" data-a="timer-done" data-v="some">Kinda did it</button><button class="link" data-a="timer-bail">I chickened out</button></div>`
           : `<button class="btn mega" data-a="timer-go">GO</button>${L.dur === 600 ? '<button class="link" data-a="timer-short">Too much? Make it 2 minutes</button>' : ''}`,
       }),
     };
@@ -1720,7 +1725,7 @@ function startLoop(fields) {
 
 // Missions and playbook moves are already a tiny step, so they go straight to the fast screen.
 function prefilled(move, source) {
-  startLoop({ thing: move, move, source, step: 'fast', verdict: 'send', draftKind: C.detectDraftKind(move) });
+  startLoop({ thing: move, move, source, step: 'fast', verdict: 'send', draftKind: C.detectDraftKind(move), dur: 120 });
 }
 
 function suggestFor(L) {
@@ -2061,10 +2066,12 @@ const ACTIONS = {
     sfx.windup();
     go('loop');
   },
-  'timer-done': () => {
+  'timer-done': (d) => {
     const L = S.active;
     L.doneSec = elapsedSec(L);
-    loopTo('outcome', { push: false });
+    L.outcome = d.v === 'some' ? 'some' : 'did';
+    if (L.dread != null) return loopTo('reality', { push: false });
+    return afterTimer(L);
   },
   'timer-bail': () => {
     const L = S.active;
@@ -2174,6 +2181,8 @@ const ACTIONS = {
     }
     r.fu.state = 'done';
     r.fu.result = d.v;
+    const lines = FOLLOW_UP.answers[d.v] || FOLLOW_UP.answers.fine;
+    r.fu.line = fresh(`verdict-${d.v}`, lines.map((x) => x.a)).index;
     S.wis += 1;
     save();
     refreshNudges();
@@ -2193,7 +2202,7 @@ const ACTIONS = {
   'share-verdict': () => {
     const r = S.receipts.find((x) => x.id === view.id);
     if (!r?.fu) return undefined;
-    const ans = FOLLOW_UP.answers[r.fu.result] || FOLLOW_UP.answers.fine;
+    const ans = verdictLine(r);
     const q = verdictQ(r, false);
     return share(() => renderObjectionCard(q, ans.a), C.objectionShareText(q, ans.a, shareUrl()), 'the-verdict.png');
   },

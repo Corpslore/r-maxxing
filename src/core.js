@@ -324,15 +324,17 @@ const DRAFT_PATTERNS = [
   ['landlord', /\b(?:landlord|property\s+manager|maintenance\s+request)\b/],
   ['roommate', /\broommates?\b/],
   ['group', /\b(?:group\s?chat|the\s+gc|gc)\b/],
+  ['reacted', /\b(?:replied|reacted|responded|commented)\b[^.]*\bmy\s+(?:story|post|pic|reel|tiktok|snap)\b/],
   ['story', /\b(?:(?:her|his|their|a)\s+story|stor(?:y|ies)\s+repl\w*)\b/],
   ['askout', /\b(?:ask(?:ing)?\s+(?:\w+\s+)?out|on a date|go(?:ing)? out with)\b/],
   ['apology', /\b(?:apolog\w*|say(?:ing)? sorry|make (?:it|things) right)\b/],
   ['decline', /\b(?:say(?:ing)? no|declin\w*|back(?:ing)? out|turn(?:ing)? (?:it |them |him |her )?down|bail(?:ing)? on|cancel(?:l?ing)? (?:on|plans|our plans|my plans))\b/],
   ['refund', /\b(?:refund\w*|money back|return(?:ing)? (?:it|this|the))\b/],
   ['followup', /\b(?:follow(?:ing)?[\s-]?up|haven't heard|check(?:ing)? in on|chas(?:e|ing) (?:up|them|him|her))\b/],
+  ['coach', /\bcoach\b/],
   ['shift', /^(?=.*\b(?:shifts?|schedule|clos(?:e|es|ing)|opens|opening shifts?|time off|days? off|(?:mon|tues|wednes|thurs|fri|satur|sun)days? off|take me off|hours|cover for)\b)(?=.*\b(?:manager|boss|supervisor|work|job|shift lead)\b)/],
   ['meeting', /\b(?:meeting|1:1|one[\s-]on[\s-]one|boss|manager|raise|promotion)\b/],
-  ['reply', /\b(?:(?:snapped|texted|messaged|dm'?d|dmed) me|on (?:delivered|read)|left (?:him|her|them|it) on|haven't (?:replied|answered|responded|texted back)|never (?:replied|answered|texted back)|(?:text|texting|message|messaging|dm|dming|snap|snapping|email|emailing|write|writing|call|calling)\s+(?:\w+\s+){0,2}back|text(?:ing)?\s+(?:him|her|them|my\s+\w+)|repl(?:y|ying)|respond\w*|get(?:ting)? back to|answer\w*\s+(?:the |her |his |their |my |that )?(?:text|message|email|dm|snap))\b/],
+  ['reply', /\b(?:(?:snapped|texted|messaged|dm'?d|dmed) me|on (?:delivered|read)|left (?:him|her|them|it) on|haven'?t (?:replied|answered|responded|texted back)|didn'?t (?:reply|answer|respond|text back)|never (?:replied|answered|texted back)|(?:idk|don'?t know) what to (?:say|text|reply|send)|what to say back|(?:text|texted|texting|message|messaged|messaging|dm|dming|snap|snapped|snapping|email|emailing|write|writing|call|calling)\s+(?:\w+\s+){0,2}back|text(?:ing)?\s+(?:him|her|them|my\s+\w+)|repl(?:y|ying)|respond\w*|get(?:ting)? back to|answer\w*\s+(?:the |her |his |their |my |that )?(?:text|message|email|dm|snap))\b/],
   ['reconnect', /\b(?:reach(?:ing)? out|reconnect\w*|haven't (?:talked|spoken)|old friend|been (?:a while|forever))\b/],
   ['issue', /\b(?:bring(?:ing)? (?:it |this |that )?up|say (?:the|that) (?:annoying|hard|awkward) thing|talk(?:ing)? to (?:him|her|them) about|bother(?:s|ing) me)\b/],
   ['favor', /\b(?:favou?r|ask(?:ing)? for help|need help from)\b/],
@@ -351,7 +353,7 @@ export function detectDraftKind(text) {
 const TITLED = /^(?:mr|mrs|ms|mx|miss|dr|coach|prof|professor)\b/i;
 export function fillDraft(template, name, hints = {}) {
   const n = String(name || '').trim();
-  let t = n && TITLED.test(n) ? template.replace(/\bProfessor \{name\}/g, '{name}') : template;
+  let t = n && TITLED.test(n) ? template.replace(/\b(?:Professor|Coach) \{name\}/g, '{name}') : template;
   t = n ? t.replace(/\{name\}/g, n) : t.replace(/ \{name\}/g, '').replace(/\{name\}/g, '');
   if (hints.when) t = t.replace(/\[(?:date|day|day\/time)\]/gi, hints.when);
   return t;
@@ -542,8 +544,10 @@ export function addr(text, who = 'brother', max = Infinity) {
 const MONTHS = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
 const WHEN_RE = new RegExp(`\\b(?:(${MONTHS})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b|(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|this weekend|next week)\\b)`);
 const TITLE_RE = /\b(mr|mrs|ms|mx|miss|dr|coach|professor|prof)\.?\s+([a-z][a-z'-]{1,20})\b/;
-const SENDER_RE = /\b([a-z][a-z'-]{1,20})(?:\s+from\s+[a-z]+)?\s+(?:snapped|texted|messaged|dm'?d|dmed|called|asked)\s+me\b/;
-const NOT_A_NAME = new Set(['he', 'she', 'they', 'someone', 'somebody', 'everyone', 'nobody', 'who', 'it', 'this', 'that', 'my', 'mom', 'dad',
+const SENDER_RE = /\b([a-z][a-z'-]{1,20})(?:\s+from\s+[a-z]+)?\s+(?:(?:snapped|texted|messaged|dm'?d|dmed|called|asked)\s+me\b|(?:replied|reacted|commented|responded)\b)/;
+const NOT_A_NAME = new Set(['why', 'what', 'when', 'where', 'how', 'about', 'said', 'says', 'told', 'is', 'was', 'to', 'for', 'if', 'me',
+  'the', 'a', 'an', 'on', 'at', 'in', 'i', 'you', 'we', 'didnt', "didn't", 'wont', "won't", 'cut', 'benched', 'yelled', 'gave', 'after', 'before',
+  'wants', 'thinks', 'class', 'history', 'chem', 'math', 'english', 'practice', 'team', 'from', 'he', 'she', 'they', 'someone', 'somebody', 'everyone', 'nobody', 'who', 'it', 'this', 'that', 'my', 'mom', 'dad',
   'boss', 'manager', 'friend', 'guy', 'girl', 'teacher', 'just', 'finally', 'literally', 'also', 'and', 'but', 'so', 'then', 'still', 'never', 'already', 'once', 'again']);
 const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 
@@ -551,7 +555,7 @@ export function draftHints(text) {
   const t = norm(text);
   let name = '';
   const titled = TITLE_RE.exec(t);
-  if (titled) {
+  if (titled && !NOT_A_NAME.has(titled[2])) {
     const title = titled[1] === 'prof' ? 'professor' : titled[1];
     name = `${cap(title)}${['mr', 'mrs', 'ms', 'mx', 'dr'].includes(title) ? '.' : ''} ${cap(titled[2])}`;
   } else {
