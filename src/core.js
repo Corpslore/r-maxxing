@@ -566,6 +566,15 @@ export function trialVerdict(c) {
   return 'continued';
 }
 
+// The check after DONE: the brain's guess against how it went, stamped the moment they answer.
+// lie: better than it said. called: right. worse: a notch worse, still fine-ish. rough: bad or a disaster,
+// which gets no stamp and no joke (the court still counts a "bad" it overcalled).
+export function revealFor(said, was) {
+  if (said == null || was == null) return null;
+  if (was >= 2) return { type: 'rough' };
+  return { type: was < said ? 'lie' : was > said ? 'worse' : 'called' };
+}
+
 // Lie number n gets its own line: the first three in order, then a rotation. Same n, same line.
 export function liarIndex(n, len) {
   if (!(n >= 1) || len < 1) return 0;

@@ -5,7 +5,7 @@ import {
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
-  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
@@ -21,7 +21,7 @@ const KEY = 'rmaxxing.v1';
 const DEFAULTS = {
   w: null, startW: null, typeName: null, quizSeconds: null, wis: C.START_WIS,
   streak: 0, lastDay: null, lastSeen: null, installLater: null,
-  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false,
+  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false, teasedOn: null,
   receipts: [], read: [], dailyDone: {}, active: null, trials: [],
 };
 
@@ -1119,15 +1119,31 @@ const STEPS = {
     }),
   }),
 
-  reality: (L) => ({
-    html: step({
-      title: L.draftKind ? 'HOW BAD WAS|SENDING IT?' : 'HOW BAD WAS IT|ACTUALLY?',
-      sub: `You said: ${DREAD[L.dread]}.`,
-      progress: PROGRESS.reality,
-      back: false,
-      body: `<div class="choices">${DREAD.map((d, i) => `<button class="choice" data-a="reality" data-v="${i}">${d.toUpperCase()}</button>`).join('')}</div>`,
-    }),
-  }),
+  // The check, when they called how bad it would go: one screen, not a form. The answer gets its
+  // verdict stamped right there; how long it had been dodged sits under it, if the receipt still needs it.
+  tally: (L) => {
+    const answered = L.reality != null;
+    const v = C.revealFor(L.dread, L.reality);
+    const dodge = dodgeNeeded(L) || (L.dodged && !answered);
+    const choices = DREAD.map((d, i) => `<button class="choice ${L.reality === i ? 'on' : ''}" data-a="reality" data-v="${i}" ${answered ? 'disabled' : ''}>${d.toUpperCase()}</button>`).join('');
+    const times = [{ label: 'I WASN’T', minutes: 0 }, ...THINK_TIMES, { label: 'NO IDEA', minutes: -1 }];
+    const picked = L.dodged ? (L.thoughtMin ?? -1) : null;
+    const dodgeRow = dodge ? `<p class="eyebrow tally-q">${REVEAL.dodge}</p>
+      <div class="chips tally-dodge">${times.map((t) => `<button class="chip ${picked === t.minutes ? 'on' : ''}" data-a="after-howlong" data-m="${t.minutes}" aria-pressed="${picked === t.minutes}">${t.label}</button>`).join('')}</div>` : '';
+    return {
+      html: step({
+        title: fill(L.draftKind ? REVEAL.askDraft : REVEAL.ask, { said: DREAD[L.dread].toUpperCase() }),
+        eyebrow: ruleTag(L),
+        max: 92,
+        progress: PROGRESS.reality,
+        back: false,
+        body: `<div class="choices two tally-choices ${answered ? 'answered' : ''}">${choices}</div>
+          ${v && v.type !== 'rough' ? revealHTML(L, v) : ''}
+          ${dodgeRow}`,
+        foot: answered && !dodgeNeeded(L) ? `<button class="btn mega" data-a="tally-next">${REVEAL.next}</button>` : '',
+      }),
+    };
+  },
 
   // THE APP PICKS: a sealed envelope instead of a text box. One re-roll.
   pick: (L) => {
@@ -1152,6 +1168,29 @@ const STEPS = {
   },
 };
 
+// A loop saved on the old "how bad was it" screen opens on the check.
+STEPS.reality = STEPS.tally;
+
+// The stamp under the answer: LIED (with the count), CALLED IT or UNDERSOLD IT, and how it moved the court's number.
+function revealHTML(L, v) {
+  const now = { id: 'now', thing: L.thing, dread: L.dread, reality: L.reality, outcome: L.outcome, at: Date.now() };
+  const after = C.trialCase([now, ...S.receipts]);
+  let sub = REVEAL[v.type].sub || '';
+  if (v.type === 'lie') {
+    const n = Math.max(1, after.lies);
+    const line = n <= REVEAL.lies.length ? REVEAL.lies[n - 1] : LIAR_LINES[C.liarIndex(n, LIAR_LINES.length)];
+    sub = fill(line, { n, said: DREAD[L.dread], was: DREAD[L.reality] });
+  }
+  const was = C.trialCase(S.receipts).cred;
+  const cred = S.trials.length && after.cred != null
+    ? `<p class="cred-move">${TRIAL.cred} <b>${was == null || was === after.cred ? `STILL ${after.cred}%` : `${was}% → ${after.cred}%`}</b></p>` : '';
+  return `<div class="reveal r-${v.type} ${L.revealFresh ? 'slam-in' : ''}" aria-live="polite">
+    <p class="reveal-stamp">${REVEAL[v.type].stamp}</p>
+    <p class="reveal-sub">${esc(sub)}</p>
+    ${cred}
+  </div>`;
+}
+
 VIEWS.loop = () => {
   if (!S.active) return VIEWS.home();
   return (STEPS[S.active.step] || STEPS.thing)(S.active);
@@ -1161,6 +1200,20 @@ VIEWS.loop.after = () => {
   if (!L) return;
   if (L.step === 'timer' && L.startedAt) startTick();
   if (L.step === 'draft') syncDraftLinks();
+  // The stamp lands once: a boom for a lie, a womp when the brain called it.
+  if ((L.step === 'tally' || L.step === 'reality') && L.revealFresh) {
+    L.revealFresh = false;
+    save();
+    const type = C.revealFor(L.dread, L.reality)?.type;
+    if (type === 'lie') {
+      sfx.boom();
+      shake();
+      buzz(40);
+    } else if (type === 'called') {
+      sfx.womp();
+      buzz(20);
+    } else buzz(20);
+  }
   if (L.step === 'verdict' && !L.verdictPlayed) {
     L.verdictPlayed = true;
     save();
@@ -1276,7 +1329,10 @@ function finishLoop() {
   if (result?.stamp) receipt.stamp = result.stamp;
   const bonus = result?.bonus || 0;
   const ruleView = result ? { ...result, id: L.rule, n: C.dayOfShowingUp(S.receipts, today) } : null;
+  // The check already stamped LIED or CALLED IT, with the count and the court's number. The receipt doesn't say it twice.
+  const revealed = ['lie', 'called', 'worse'].includes(C.revealFor(receipt.dread, receipt.reality)?.type);
   const line = closeLine(receipt, {
+    revealed,
     lies: C.trialCase([receipt, ...S.receipts]).lies,
     capped: credit && !credit.counts ? credit.n : 0,
     firstEver,
@@ -1312,11 +1368,19 @@ function finishLoop() {
     S.reviewAt.push(finished);
     setTimeout(requestReview, 2600);
   }
+  // What's tomorrow (brain court, or tomorrow's rule once today's is done): once a day on a receipt,
+  // not on every one. Home keeps showing it.
+  const ahead = trialAhead();
+  const court = ahead?.how === 'soon' ? ahead.day : null;
+  const ruleNowAfter = ruleNow();
+  const ruleNext = !court && (!ruleNowAfter || ruleNowAfter.done) ? ruleTomorrow() : null;
+  const tease = (court || ruleNext) && S.teasedOn !== today ? { court, rule: ruleNext } : null;
+  if (tease) S.teasedOn = today;
   save();
   refreshNudges();
   const flash = receipt.legendary ? 'sun' : fresh('flash', FLASHES).item;
   // A one-way door closes quietly: no unlock cards (they still open, and show in METHOD), no confetti.
-  go('close', { receipt, before, after, wisDelta: wisDelta + bonus, showThing: false, fresh: true, line, unlocked: think ? [] : unlocked, forgiven, drip, flash, firstEver, rule: ruleView, think });
+  go('close', { receipt, before, after, wisDelta: wisDelta + bonus, showThing: false, fresh: true, line, unlocked: think ? [] : unlocked, forgiven, drip, flash, firstEver, rule: ruleView, think, revealed, tease });
 }
 
 // ---------- close and receipts ----------
@@ -1357,12 +1421,13 @@ function closeLine(r, ctx) {
   // A one-way door handled the right way gets a straight line, not a joke. Not even the liar count.
   if (ctx.think) return 'A question, a date, a person who knows. That’s how a big one gets handled. The brain can clock out.';
   // Caught lying: the line climbs with the count, so lie number 5 doesn't read like lie number 1.
-  if (r.dread != null && r.reality < r.dread) {
+  // Skipped when the check already stamped it.
+  if (!ctx.revealed && r.dread != null && r.reality < r.dread) {
     const n = Math.max(1, ctx.lies || 1);
     return fill(LIAR_LINES[C.liarIndex(n, LIAR_LINES.length)], { said: DREAD[r.dread], was: DREAD[r.reality], n });
   }
   if (ctx.capped) return `That’s ${ctx.capped} today. The brain only smooths ${C.DAILY_CREDIT} a day. It’s a brain, not a microwave.`;
-  if (r.doneSec != null && r.doneSec < 10) return 'Under 10 seconds. Either you’re a legend or you didn’t do it. We’ll never know.';
+  if (r.doneSec != null && r.doneSec < 10) return fresh('fast', FAST_LINES).item;
   if (Math.random() < C.LEGENDARY_ODDS) {
     // Unfound rare lines come first, so the collection fills before anything repeats.
     const unfound = RARE_LINES.filter((l) => !hasFound('rares', l));
@@ -1399,11 +1464,9 @@ VIEWS.close = () => {
   const stats = bailed ? 'NO PENALTY' : [intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join(' · ');
   const levelLines = bailed ? 'NO|PENALTY.' : [view.rule?.head || '', r.legendary ? 'LEGENDARY' : '', intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join('|');
   const overlay = fresh ? `<div class="levelup ${bailed ? 'sad' : `f-${flash || 'sun'}`}" id="levelup" data-a="skip-level">${big(levelLines, { max: 190, slam: true, center: true })}</div>` : '';
-  // The cliffhanger: brain court is tomorrow. Otherwise, once today's rule is done (or there isn't one), tomorrow's rule.
-  const ahead = trialAhead();
-  const court = ahead?.how === 'soon' ? ahead : null;
-  const now = ruleNow();
-  const ruleNext = !court && (!now || now.done) ? ruleTomorrow() : null;
+  // The cliffhanger (brain court, or tomorrow's rule), picked in finishLoop: once a day, on the first receipt that has one.
+  const court = view.tease?.court || null;
+  const ruleNext = view.tease?.rule || null;
   return {
     html: `<main class="screen close">
       <div class="close-head">
@@ -1418,8 +1481,8 @@ VIEWS.close = () => {
       ${forgiven ? '<p class="forgiven">You skipped yesterday. Streak kept. A day off is a day off.</p>' : ''}
       ${view.rule ? ruleResultHTML(view.rule, r) : ''}
       ${drip ? dripCard(drip, after) : ''}
-      ${credMove(r)}
-      ${court ? `<div class="court-soon"><b>${fill(TRIAL.soonTitle, { name: TRIAL.levels[court.day].name })}</b><span>${TRIAL.levels[court.day].soon}</span></div>` : ''}
+      ${view.revealed ? '' : credMove(r)}
+      ${court ? `<div class="court-soon"><b>${fill(TRIAL.soonTitle, { name: TRIAL.levels[court].name })}</b><span>${TRIAL.levels[court].soon}</span></div>` : ''}
       ${ruleNext ? `<div class="court-soon rule-soon t-${ruleNext}">${ruleSoon(ruleNext)}</div>` : ''}
       ${(view.firstEver || r.fu || court || ruleNext) && canNudge() && !S.nudge && !view.nudgeAsked ? `<div class="nudge-card">
         <b>${court ? TRIAL.offer : r.fu ? FOLLOW_UP.offer[r.fu.type] : ruleNext ? fill(RULES.offer, { name: RULES[ruleNext].name }) : 'WANT A NUDGE TOMORROW?'}</b>
@@ -2111,12 +2174,31 @@ function startDraftClock(copied) {
   toast(copied ? 'Copied. Go send it.' : 'Couldn’t copy. Press and hold the message to copy it.');
 }
 
-// After the timer: ask how long it had been put off only if we never asked, and never for the head-clearing walk.
+// How long it had been put off: asked only if we never asked, and never for the head-clearing walk.
 // Nor for something the app handed them (a dare, the daily mission, the envelope), or round 2 of BACK TO BACK.
-function afterTimer(L) {
+function dodgeNeeded(L) {
   const handed = ['dare', 'daily'].includes(L.source) || L.rule === 'pick' || (L.rule === 'double' && L.round > 1);
-  if (L.thoughtMin == null && L.source !== 'check' && !handed) return loopTo('after', { push: false });
+  return L.thoughtMin == null && !L.dodged && L.source !== 'check' && !handed;
+}
+
+// After DONE: whatever the receipt still needs, on one screen at most. They called how bad it'd go:
+// the check (the answer, stamped, plus how long if needed). They didn't: just how long, or straight to the receipt.
+function afterDone(L) {
+  if (L.dread != null) return loopTo('tally', { push: false });
+  return afterTimer(L);
+}
+function afterTimer(L) {
+  if (dodgeNeeded(L)) return loopTo('after', { push: false });
   return finishLoop();
+}
+
+// Once the check has everything, it moves on by itself after the stamp has landed. NEXT does it sooner.
+let tallyT = null;
+function finishTallySoon(L, ms) {
+  clearTimeout(tallyT);
+  tallyT = setTimeout(() => {
+    if (S.active === L && (L.step === 'tally' || L.step === 'reality')) finishLoop();
+  }, ms);
 }
 
 function decideDoor(L) {
@@ -2489,8 +2571,7 @@ const ACTIONS = {
     const L = S.active;
     L.doneSec = elapsedSec(L);
     L.outcome = d.v === 'some' ? 'some' : 'did';
-    if (L.dread != null) return loopTo('reality', { push: false });
-    return afterTimer(L);
+    return afterDone(L);
   },
   'timer-bail': () => {
     const L = S.active;
@@ -2502,17 +2583,35 @@ const ACTIONS = {
     const L = S.active;
     L.outcome = d.v;
     if (d.v === 'bailed') return finishLoop();
-    if (L.dread != null) return loopTo('reality', { push: false });
-    return afterTimer(L);
+    return afterDone(L);
   },
+  // The check: the answer gets its stamp on the same screen. A bad or a disaster gets no stamp and moves on quietly.
   reality: (d) => {
-    S.active.reality = Number(d.v);
-    return afterTimer(S.active);
+    const L = S.active;
+    if (!L || L.reality != null) return undefined;
+    L.reality = Number(d.v);
+    L.revealFresh = true;
+    save();
+    go('loop');
+    if (!dodgeNeeded(L)) finishTallySoon(L, C.revealFor(L.dread, L.reality)?.type === 'rough' ? 700 : 2200);
+    return undefined;
   },
   'after-howlong': (d) => {
+    const L = S.active;
+    if (!L) return undefined;
     const m = Number(d.m);
-    S.active.thoughtMin = m >= 0 ? m : null;
-    finishLoop();
+    L.thoughtMin = m >= 0 ? m : null;
+    L.dodged = true;
+    // On the check, still waiting on how bad it was: mark the pick and wait.
+    if ((L.step === 'tally' || L.step === 'reality') && L.reality == null) {
+      save();
+      return go('loop');
+    }
+    return finishLoop();
+  },
+  'tally-next': () => {
+    const L = S.active;
+    if (L && L.reality != null) finishLoop();
   },
   'skip-level': () => dismissLevelUp(),
 

@@ -1153,3 +1153,25 @@ export const LIAR_LINES = [
   'Lie number {n}. Put it on the brain’s permanent record.',
   'Lie number {n}. You said {said}. It was {was}. Same as always.',
 ];
+
+// The check after DONE. "How bad was it" is answered on one screen with "how long had you been
+// dodging it", and the answer gets its verdict right there, stamped. {said} {n} filled in by the app.
+export const REVEAL = {
+  ask: 'YOU SAID|{said}.|IT WAS…',
+  askDraft: 'YOU SAID|{said}.|SENDING IT WAS…',
+  dodge: 'AND YOU’D BEEN DODGING IT FOR…',
+  next: 'NEXT →',
+  lie: { stamp: 'LIED.' },
+  called: { stamp: 'CALLED IT.', sub: 'Point for the brain. Don’t let it get cocky.' },
+  worse: { stamp: 'UNDERSOLD IT.', sub: 'A notch worse than it said. Done anyway.' },
+  // The lie count, under the stamp. From lie 4 on, the rotation in LIAR_LINES.
+  lies: ['First lie on the record.', 'Lie number {n}. Same brain, same move.', 'Lie number {n}. It’s a pattern now.'],
+};
+
+// Finished in under 10 seconds. Rotates, so a run of quick ones doesn't get the same joke every time.
+export const FAST_LINES = [
+  'Under 10 seconds. Either you’re a legend or you didn’t do it. We’ll never know.',
+  'Under 10 seconds. The brain didn’t even get its shoes on.',
+  'Faster than the brain can load. Suspicious. Respect.',
+  'Under 10 seconds. Was it even a thing? Doesn’t matter. Done.',
+];
