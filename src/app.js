@@ -213,7 +213,8 @@ function ruleRound() {
   if (!r || r.done) return {};
   const R = RULES[r.id];
   const base = { rule: r.id, round: r.rounds + 1, theme: { speedrun: 'lime', double: 'orange', minute: 'pink', pick: 'blue', boss: '' }[r.id] };
-  if (r.id === 'boss') return { ...base, title: R.title, placeholder: R.placeholder };
+  // The boss is the big one, so it gets the door check, like the court's sentence: a one-way door gets a plan, not a GO.
+  if (r.id === 'boss') return { ...base, full: true, title: R.title, placeholder: R.placeholder };
   if (r.id === 'pick') return { ...base, step: 'pick' };
   if (r.id === 'minute') return { ...base, dur: 60 };
   if (r.id === 'double' && r.rounds) return { ...base, title: R.round2.title, placeholder: R.round2.placeholder };
@@ -725,7 +726,7 @@ function teaser() {
   }
   // No rule today (days 1 to 3, hearing days) and something's done: say what tomorrow's rule is.
   const rule = !ruleNow() && ruleTomorrow();
-  if (rule) return `<div class="teaser rule t-${rule}">${ruleSoon(rule)}</div>`;
+  if (rule) return `<div class="teaser rule-tease t-${rule}">${ruleSoon(rule)}</div>`;
   const d = days();
   const next = nextOpening(d);
   const label = next
@@ -1018,7 +1019,7 @@ const STEPS = {
     const chips = think || offerDraft || L.rule === 'pick' ? '' : `<div class="chips">${L.chips.map((c) => `<button class="chip" data-a="chip" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>`;
     const draftCard = offerDraft
       ? `<button class="draft-card" data-a="to-draft"><span class="eyebrow">Looks like a message</span><strong>WRITE IT FOR ME</strong><span class="tag">WRITE</span></button>`
-      : think ? '' : '<button class="link words-link" data-a="to-draft">Need words? Pick a message →</button>';
+      : think || L.rule === 'pick' ? '' : '<button class="link words-link" data-a="to-draft">Need words? Pick a message →</button>';
     const dread = `<div class="dread-row" role="group" aria-label="How bad is it gonna go?">
         <p class="eyebrow">Call it: how bad will it go? We check when you’re done.</p>
         <div class="dread-pills">${DREAD.map((d, i) => `<button class="pill-btn" data-a="dread-pick" data-v="${i}" aria-pressed="${L.dread === i}">${d.toUpperCase()}</button>`).join('')}</div>
@@ -1077,10 +1078,10 @@ const STEPS = {
     let title = running ? 'NOT A THOUGHT.' : 'NOTHING TO DECIDE.';
     if (R?.ready) title = running ? R.running : R.ready;
     if (L.verdict === 'think') title = running ? 'ON PURPOSE.' : 'TEN MINUTES.|ON PURPOSE.';
-    // SPEEDRUN counts up against the record. THE BOSS has health that drains while you're at it.
+    // SPEEDRUN counts up against the record. THE BOSS shows its health; DONE is the hit.
     const clock = speed ? C.fmtClock(running ? Math.floor(elapsedNow(L)) : 0) : C.fmtClock(running ? remaining(L) : L.dur);
     const ghost = rec ? `<p class="ghost-record" id="ghost">${fill(RULES.speedrun.ghost, { record: rec })}</p>` : '';
-    const hp = L.rule === 'boss' ? `<div class="boss-hp"><span>${RULES.boss.hp}</span><b><i id="hp" style="width:${hpLeft(L)}%"></i></b></div>` : '';
+    const hp = L.rule === 'boss' ? `<div class="boss-hp"><span>${RULES.boss.hp}</span><b><i></i></b></div>` : '';
     return {
       tone: L.rule === 'boss' ? '' : L.theme || 'sun',
       html: step({
@@ -1175,8 +1176,6 @@ function remaining(L) {
   return L.dur - (Date.now() - L.startedAt) / 1000;
 }
 const elapsedNow = (L) => Math.max(0, (Date.now() - L.startedAt) / 1000);
-// The boss loses up to 60% of its health to the clock. The rest only goes when you hit DONE.
-const hpLeft = (L) => (L.startedAt ? Math.round(100 - Math.min(1, elapsedNow(L) / L.dur) * 60) : 100);
 
 function startTick() {
   const clock = document.getElementById('clock');
@@ -1195,7 +1194,6 @@ function startTick() {
   let hypeAt = Date.now();
   let lastCount = null;
   const ghost = document.getElementById('ghost');
-  const hp = document.getElementById('hp');
   const record = S.active.rule === 'speedrun' ? C.speedRecord(S.receipts) : null;
   // ONE MINUTE ticks for the last ten seconds, everything else for the last five.
   const tickFrom = S.active.rule === 'minute' ? 10 : 5;
@@ -1208,7 +1206,6 @@ function startTick() {
       ghost.classList.add('past');
       ghost.textContent = RULES.speedrun.past;
     }
-    if (hp) hp.style.width = `${hpLeft(S.active)}%`;
     if (Date.now() - hypeAt > 15000) {
       hypeAt = Date.now();
       nextHype();
@@ -1303,7 +1300,9 @@ function finishLoop() {
   if (firstEver && !framed) navigator.storage?.persist?.().catch(() => {});
   const finished = S.receipts.filter((x) => x.outcome !== 'bailed').length;
   // At most one new piece a day, so the closet fills over weeks, not one night.
-  const drip = counts && S.lastDripDay !== today ? C.dripDue(finished, S.closet, S.closetOrder, DRIP_AT) : null;
+  // Not after a one-way door: a party hat right after naming the thing you hide reads wrong. It comes next time.
+  const think = L.verdict === 'think';
+  const drip = counts && !think && S.lastDripDay !== today ? C.dripDue(finished, S.closet, S.closetOrder, DRIP_AT) : null;
   if (drip) {
     S.closet.push(drip);
     S.lastDripDay = today;
@@ -1316,7 +1315,8 @@ function finishLoop() {
   save();
   refreshNudges();
   const flash = receipt.legendary ? 'sun' : fresh('flash', FLASHES).item;
-  go('close', { receipt, before, after, wisDelta: wisDelta + bonus, showThing: false, fresh: true, line, unlocked, forgiven, drip, flash, firstEver, rule: ruleView });
+  // A one-way door closes quietly: no unlock cards (they still open, and show in METHOD), no confetti.
+  go('close', { receipt, before, after, wisDelta: wisDelta + bonus, showThing: false, fresh: true, line, unlocked: think ? [] : unlocked, forgiven, drip, flash, firstEver, rule: ruleView, think });
 }
 
 // ---------- close and receipts ----------
@@ -1354,13 +1354,13 @@ function closeLine(r, ctx) {
   if (r.outcome === 'bailed') return fresh('bail', BAIL_LINES).item;
   if (r.reality === 3) return 'Okay. That one was bad. If it’s actually serious, talk to somebody who can help.';
   if (r.reality === 2) return 'That happens. Now you know something. Move on.';
+  // A one-way door handled the right way gets a straight line, not a joke. Not even the liar count.
+  if (ctx.think) return 'A question, a date, a person who knows. That’s how a big one gets handled. The brain can clock out.';
   // Caught lying: the line climbs with the count, so lie number 5 doesn't read like lie number 1.
   if (r.dread != null && r.reality < r.dread) {
     const n = Math.max(1, ctx.lies || 1);
     return fill(LIAR_LINES[C.liarIndex(n, LIAR_LINES.length)], { said: DREAD[r.dread], was: DREAD[r.reality], n });
   }
-  // A one-way door handled the right way gets a straight line, not a joke about speed.
-  if (ctx.think) return 'A question, a date, a person who knows. That’s how a big one gets handled. The brain can clock out.';
   if (ctx.capped) return `That’s ${ctx.capped} today. The brain only smooths ${C.DAILY_CREDIT} a day. It’s a brain, not a microwave.`;
   if (r.doneSec != null && r.doneSec < 10) return 'Under 10 seconds. Either you’re a legend or you didn’t do it. We’ll never know.';
   if (Math.random() < C.LEGENDARY_ODDS) {
@@ -1427,7 +1427,7 @@ VIEWS.close = () => {
         <div class="chips">${[[15, 30, 'AFTER SCHOOL'], [18, 0, '6 PM'], [21, 0, '9 PM']].map(([h, m, label]) => `<button class="chip" data-a="nudge" data-h="${h}" data-m="${m}">${label}</button>`).join('')}<button class="chip" data-a="nudge" data-h="">NAH</button></div>
       </div>` : ''}
       ${unlocked.map((u) => `<button class="unlock-card" data-a="${u.kind === 'lessons' ? 'lesson' : 'pack'}" data-id="${u.id}">
-        <b>UNLOCKED</b><span>${esc(unlockName(u.kind, u.id))}</span></button>`).join('')}
+        <b>UNLOCKED</b><span>${esc(unlockName(u.kind, u.id))}</span><em>OPEN IT →</em></button>`).join('')}
       ${receiptHTML(r, showThing)}
       ${toggle}
       <div class="close-foot">
@@ -1518,7 +1518,9 @@ VIEWS.close.after = () => {
   if (bailed) sfx.womp();
   else {
     const r = view.receipt;
-    if (r.legendary) {
+    if (view.think) {
+      // Handled on purpose: a nod, not a party.
+    } else if (r.legendary) {
       sfx.legendary();
       celebrate({ shape: 'star', motion: 'burst', count: 48 });
     } else {
@@ -2110,8 +2112,10 @@ function startDraftClock(copied) {
 }
 
 // After the timer: ask how long it had been put off only if we never asked, and never for the head-clearing walk.
+// Nor for something the app handed them (a dare, the daily mission, the envelope), or round 2 of BACK TO BACK.
 function afterTimer(L) {
-  if (L.thoughtMin == null && L.source !== 'check') return loopTo('after', { push: false });
+  const handed = ['dare', 'daily'].includes(L.source) || L.rule === 'pick' || (L.rule === 'double' && L.round > 1);
+  if (L.thoughtMin == null && L.source !== 'check' && !handed) return loopTo('after', { push: false });
   return finishLoop();
 }
 

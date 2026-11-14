@@ -119,7 +119,9 @@ export const MOVE_SUGGESTIONS = {
   apply: 'Open the application and fill in the first box.',
   clean: 'Clean one surface. Just one.',
   call: 'Dial the number. Say hi.',
-  write: 'Write one bad paragraph.',
+  write: 'Write one ugly sentence. Then another.',
+  book: 'Open the booking page. Take the first open slot.',
+  form: 'Open the form. Fill in the first box.',
   default: 'Do the first ugly 10 minutes.',
 };
 
@@ -1063,6 +1065,7 @@ export const RULES = {
     lines: {
       round: { title: 'ROUND 1: DONE.', sub: 'One more and it’s back to back. The brain is still catching up.' },
       win: { title: 'BACK TO BACK.', sub: 'Two in a row. The brain didn’t get a word in. +1 WIS.' },
+      kinda: { title: 'BACK TO BACK. KINDA.', sub: 'Two in a row, one of them kinda. Kinda still counts. +1 WIS.' },
     },
   },
   minute: {
@@ -1079,6 +1082,8 @@ export const RULES = {
       apply: 'Open the application.',
       clean: 'Clear one spot.',
       call: 'Dial the number.',
+      book: 'Open the booking page.',
+      form: 'Open the form.',
       write: 'Write the first sentence.',
       default: 'Do the first 60 seconds of it.',
     },
@@ -1109,8 +1114,8 @@ export const RULES = {
   },
   boss: {
     name: 'THE BOSS',
-    card: 'The one you’ve dodged longest. It has health. One hit is enough.',
-    tease: 'The one you’ve dodged longest. It has health.',
+    card: 'The one you’ve dodged longest. Land the first hit.',
+    tease: 'The one you’ve dodged longest. Land the first hit.',
     tag: 'BOSS FIGHT',
     tagHp: 'BOSS FIGHT · {dodged} OF DODGING',
     title: 'THE BOSS:|THE ONE YOU’VE|DODGED LONGEST.',
@@ -1121,9 +1126,9 @@ export const RULES = {
     running: 'HIT IT.',
     hp: 'BOSS HP',
     lines: {
-      win: { title: 'BOSS DOWN.', sub: '{dodged} of dodging. {did} of doing.' },
-      winNoTime: { title: 'BOSS DOWN.', sub: 'It took {did}.' },
-      hurt: { title: 'BOSS HURT.', sub: 'Kinda counts. It has less health than it did this morning.' },
+      win: { title: 'CRITICAL HIT.', sub: '{dodged} of dodging. {did} of doing. It’s not down. It knows you’re coming now.' },
+      winNoTime: { title: 'CRITICAL HIT.', sub: 'It took {did}. It’s not down. It knows you’re coming now.' },
+      hurt: { title: 'GRAZED IT.', sub: 'Kinda counts. It has less health than it did this morning.' },
       think: { title: 'BOSS: HANDLED ON PURPOSE.', sub: 'Some bosses get a plan, not a GO. A date and a person who knows is a hit.' },
     },
   },

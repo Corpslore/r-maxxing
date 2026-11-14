@@ -372,8 +372,10 @@ const MOVE_PATTERNS = [
   ['gym', /\b(?:gym|work ?out|workout|run|running|lift\w*|exercise|walk)\b/],
   ['email', /\b(?:e-?mail\w*|inbox)\b/],
   ['apply', /\b(?:apply|applying|application|resume|cv)\b/],
+  ['form', /\b(?:appeal\w*|form|forms|dispute|ticket|paperwork|renew\w*)\b/],
   ['clean', /\b(?:clean\w*|laundry|dishes|tidy|declutter)\b/],
   ['call', /\b(?:call|calling|phone|ring)\b/],
+  ['book', /\b(?:book|booking|appointment|appt|schedul\w*|dentist|doctor|haircut|reservation)\b/],
   ['write', /\b(?:write|writing|essay|paper|post|video|edit\w*|draft)\b/],
 ];
 
@@ -620,7 +622,7 @@ export function ruleResult(r, before, { think = false } = {}) {
       const today = dateKey(new Date(r.at));
       const rounds = ruleRounds(before, 'double', today) + 1;
       return rounds >= RULE_ROUNDS.double
-        ? { kind: 'win', head: 'BACK TO BACK', stamp: 'BACK TO BACK', bonus: 1 }
+        ? { kind: did ? 'win' : 'kinda', head: 'BACK TO BACK', stamp: 'BACK TO BACK', bonus: 1 }
         : { kind: 'round', head: `ROUND ${rounds}`, stamp: `ROUND ${rounds}` };
     }
     case 'minute':
@@ -631,7 +633,7 @@ export function ruleResult(r, before, { think = false } = {}) {
       return { kind: 'win', head: null, stamp: 'THE APP PICKED' };
     case 'boss':
       if (think) return { kind: 'think', head: null, stamp: 'BOSS: ON PURPOSE' };
-      return did ? { kind: 'win', head: 'BOSS DOWN', stamp: 'BOSS DOWN' } : { kind: 'hurt', head: 'BOSS HURT', stamp: 'BOSS HURT' };
+      return did ? { kind: 'win', head: 'CRITICAL HIT', stamp: 'CRITICAL HIT' } : { kind: 'hurt', head: 'GRAZED IT', stamp: 'GRAZED IT' };
     default:
       return null;
   }
