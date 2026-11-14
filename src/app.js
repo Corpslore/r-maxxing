@@ -1297,13 +1297,12 @@ function finishLoop() {
   const prevStreak = S.streak;
   const daysBefore = days();
   const firstEver = !S.receipts.length;
-  let forgiven = false;
-  if (L.outcome !== 'bailed') {
-    forgiven = C.forgivenGap(prevDay, today) && prevStreak > 0;
-    S.streak = C.nextStreak(S.lastDay, S.streak, today);
-    S.lastDay = today;
-    if (L.source === 'daily') S.dailyDone[today] = true;
-  }
+  // Showing up is the habit: a chicken-out keeps the streak going too ("NO PENALTY" means no penalty).
+  // Only a real round earns stats, ticks off the daily mission or counts for today's rule.
+  const forgiven = C.forgivenGap(prevDay, today) && prevStreak > 0;
+  S.streak = C.nextStreak(S.lastDay, S.streak, today);
+  S.lastDay = today;
+  if (L.source === 'daily' && L.outcome !== 'bailed') S.dailyDone[today] = true;
   const receipt = {
     id: Date.now().toString(36),
     thing: L.thing,
@@ -1316,7 +1315,7 @@ function finishLoop() {
     at: Date.now(),
     day: C.dayNumber(today),
     n: S.receipts.length + 1,
-    streak: L.outcome === 'bailed' ? 0 : S.streak,
+    streak: S.streak,
     kind: L.draftKind || null,
     to: L.draftKind ? (L.draftName ?? C.draftHints(L.thing).name) || '' : '',
     fu: C.followUpFor(L),
@@ -1390,7 +1389,7 @@ function finishLoop() {
   refreshNudges();
   const flash = receipt.legendary ? 'sun' : fresh('flash', FLASHES).item;
   // A one-way door closes quietly: no unlock cards (they still open, and show in METHOD), no confetti.
-  go('close', { receipt, before, after, wisDelta: wisDelta + bonus, showThing: false, fresh: true, line, unlocked: think ? [] : unlocked, forgiven, drip, flash, firstEver, rule: ruleView, think, revealed, tease, splash });
+  go('close', { receipt, before, after, wisDelta: wisDelta + bonus, showThing: false, fresh: true, line, unlocked: think ? [] : unlocked, forgiven, drip, flash, firstEver, rule: ruleView, think, revealed, tease, splash, bailStreak: L.outcome === 'bailed' && S.streak > prevStreak ? S.streak : 0 });
 }
 
 // ---------- close and receipts ----------
@@ -1494,6 +1493,7 @@ VIEWS.close = () => {
       ${r.legendary ? '<p class="legend-tag">★ LEGENDARY RECEIPT ★</p>' : ''}
       <p class="close-line">${esc(line || '')}</p>
       ${forgiven ? '<p class="forgiven">You skipped yesterday. Streak kept. A day off is a day off.</p>' : ''}
+      ${view.bailStreak > 1 ? `<p class="forgiven">${view.bailStreak}-day streak. Showing up counts.</p>` : ''}
       ${view.rule ? ruleResultHTML(view.rule, r) : ''}
       ${drip ? dripCard(drip, after) : ''}
       ${view.revealed ? '' : credMove(r)}
