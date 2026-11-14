@@ -720,6 +720,25 @@ a.btn { text-decoration: none; }
 #thing, #move, #draft { overflow: hidden; resize: none; }
 
 /* Day 2: yesterday's question, first thing on home. */
+/* The big one's date: picked on its receipt or its card, asked about on the day. */
+.date-card { display: grid; gap: 4px; margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: var(--raised); box-shadow: inset 0 0 0 3px #9CA3FF; }
+.date-card.bare { margin-top: 8px; padding: 0; background: none; box-shadow: none; }
+.date-card b { font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 24px; letter-spacing: .02em; color: #9CA3FF; }
+.date-card > span { font-weight: 700; font-size: 15px; color: var(--mute); }
+.date-card .chips { margin-top: 6px; }
+.date-pick { display: grid; gap: 4px; margin-top: 8px; font-weight: 700; font-size: 14px; color: var(--mute); }
+.date-pick input { min-height: 48px; font-size: 18px; }
+.fu-sub { display: block; margin: 6px 0 0; font-weight: 700; font-size: 15px; color: var(--mute); }
+.week-card { display: grid; gap: 2px; width: 100%; text-align: left; color: var(--fg); }
+.week-card .court-go { margin-top: 6px; font-family: "Anton", Impact, sans-serif; font-size: 20px; letter-spacing: .04em; color: var(--pink, #FF3D8B); }
+.week-line { margin: 4px 0 6px; font-weight: 800; font-size: 19px; line-height: 1.3; text-wrap: balance; }
+.week-ahead { display: grid; gap: 6px; }
+.week-ahead p { margin: 0; font-weight: 700; color: var(--mute); }
+.week-open { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.week-open li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--raised); }
+.week-open span { min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.week-open .chip { flex: none; }
+.week-back, .week-link { margin-top: 14px; }
 .fu-card { margin: 4px 0 12px; padding: 14px; border-radius: 16px; background: var(--raised); box-shadow: inset 0 0 0 3px var(--pink, #FF3D8B); }
 .fu-card .eyebrow { margin: 0 0 4px; color: var(--pink, #FF3D8B); }
 .fu-card strong { display: block; font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 28px; text-transform: uppercase; line-height: 1.05; letter-spacing: .02em; overflow-wrap: anywhere; }
@@ -780,6 +799,16 @@ a.btn { text-decoration: none; }
 .t-minute { --rc: #FF3D8B; --rs: #8F1E4D; --rf: #0B0B0B; --rx: #FF6FA8; }
 .t-pick { --rc: #1E2BFF; --rs: #0E166F; --rf: #FFF8E7; --rx: #9CA3FF; }
 .t-boss { --rc: #FF2B1C; --rs: #8E0F06; --rf: #FFF8E7; --rx: #FF6A5E; }
+.t-quickdraw { --rc: #FFE500; --rs: #8F8100; --rf: #0B0B0B; --rx: #FFE500; }
+.t-blind { --rc: #9B5CFF; --rs: #4B2490; --rf: #0B0B0B; --rx: #B78BFF; }
+.t-sequel { --rc: #00D1FF; --rs: #006A82; --rf: #0B0B0B; --rx: #4FE0FF; }
+.t-hardcore { --rc: #F0EFEA; --rs: #6B6B6B; --rf: #0B0B0B; --rx: #F0EFEA; }
+.draw-clock { width: max-content; max-width: 100%; margin: 0 0 10px; padding: 4px 16px; border-radius: 999px; background: #0B0B0B; color: #FFE500; font-family: "Anton", Impact, sans-serif; font-size: 28px; letter-spacing: .05em; }
+.draw-clock.late { color: #FF6A5E; font-size: 18px; padding: 8px 14px; }
+.sequel-list { display: grid; gap: 10px; margin-top: 14px; }
+.sequel-item { display: grid; gap: 4px; width: 100%; padding: 14px 16px; border-radius: 14px; text-align: left; background: var(--raised); color: var(--fg); box-shadow: inset 0 0 0 3px #00D1FF; }
+.sequel-item strong { font-weight: 800; font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; }
+.sequel-item span { font-family: "DM Mono", ui-monospace, monospace; font-size: 13px; letter-spacing: .06em; color: var(--mute); }
 .rule-card { display: grid; gap: 3px; width: 100%; margin: 12px 0 16px; padding: 14px 16px; border-radius: 16px; text-align: left; background: var(--rc); color: var(--rf); box-shadow: 0 6px 0 var(--rs); }
 .rule-card .eyebrow { margin: 0; color: inherit; opacity: .85; }
 .rule-card strong { font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 32px; line-height: 1.02; letter-spacing: .02em; }

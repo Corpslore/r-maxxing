@@ -21,6 +21,13 @@ export function dayDiff(fromKey, toKey) {
   return Math.round((keyToUtc(toKey) - keyToUtc(fromKey)) / DAY_MS);
 }
 
+// The date key n days after `key`. Counted on the calendar, so a clock change can't skip a day.
+export function addDays(key, n) {
+  const d = new Date(keyToUtc(key) + n * DAY_MS);
+  const p = (x) => String(x).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+}
+
 export function dayNumber(key) {
   return Math.round((keyToUtc(key) - FIRST_DAY_UTC) / DAY_MS) + 1;
 }
@@ -614,14 +621,50 @@ export function liarIndex(n, len) {
 // teased the day before. Hearing days belong to the court.
 
 export const RULE_START = 4;
-const RULE_ARC = { 4: 'speedrun', 5: 'double', 6: 'minute', 8: 'pick', 9: 'boss' };
-export const RULE_CYCLE = ['speedrun', 'double', 'minute', 'pick', 'boss'];
+// Week 1 and week 2 each get their own rules: nothing in the first two weeks is a rerun.
+const RULE_ARC = { 4: 'speedrun', 5: 'double', 6: 'minute', 8: 'pick', 9: 'boss', 10: 'quickdraw', 11: 'blind', 12: 'sequel', 13: 'hardcore' };
+// From day 15, all nine take turns, in an order that keeps every rule at least 8 days from its last run.
+// (Tester 7 got SPEEDRUN back on day 10, six days after day 4: "I've seen this episode.")
+export const RULE_CYCLE_START = 15;
+export const RULE_CYCLE = ['double', 'speedrun', 'boss', 'minute', 'pick', 'quickdraw', 'blind', 'sequel', 'hardcore'];
 // Rounds a rule needs before it's done. Everything not listed needs one.
 export const RULE_ROUNDS = { double: 2 };
 
 export function ruleForDay(n) {
   if (!(n >= RULE_START) || TRIAL_DAYS.includes(n)) return null;
-  return RULE_ARC[n] || RULE_CYCLE[(n - 10) % RULE_CYCLE.length];
+  return RULE_ARC[n] || RULE_CYCLE[(n - RULE_CYCLE_START) % RULE_CYCLE.length];
+}
+
+// QUICKDRAW: GO within this many seconds of the first step showing up.
+export const DRAW_SEC = 10;
+
+// BLINDFOLD: the guess (1 min, 5, 15, an hour) against the time it took. A guess covers up to the cut
+// after it: "1 MIN" is anything to 2 minutes, "5 MIN" to 8, "15 MIN" to 30, "AN HOUR" past that.
+export const TIME_CUTS = [120, 480, 1800];
+export const timeBucket = (sec) => TIME_CUTS.filter((c) => sec > c).length;
+// lie: it took less than the brain said. called: right bucket. worse: took longer.
+export function timeVerdict(said, sec) {
+  if (said == null || sec == null) return null;
+  const was = timeBucket(sec);
+  return was < said ? 'lie' : was > said ? 'worse' : 'called';
+}
+
+// PART 2: things from the last two weeks that got done or kinda done, to pick back up. Kinda first,
+// then newest. Never one-way doors, the safety words, or anything from today.
+export function sequelCandidates(receipts, today, now = Date.now(), days = 14, max = 4) {
+  const key = (t) => String(t || '').trim().toLowerCase();
+  const seen = new Set();
+  const out = [];
+  for (const r of receipts || []) {
+    if (r.outcome === 'bailed' || !r.thing || now - r.at > days * 86400000 || dateKey(new Date(r.at)) === today) continue;
+    const k = key(r.thing);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    if (r.fu?.type === 'plan' || detectCrisis(r.thing) || detectCrisisCheck(r.thing) || detectOneWay(r.thing)) continue;
+    out.push(r);
+  }
+  const rank = (r) => (r.outcome === 'some' ? 0 : 1);
+  return out.sort((a, b) => rank(a) - rank(b) || b.at - a.at).slice(0, max);
 }
 
 // Which day of showing up `today` is. It only moves when something gets done, so a gap skips nothing.
@@ -670,6 +713,19 @@ export function ruleResult(r, before, { think = false } = {}) {
     case 'boss':
       if (think) return { kind: 'think', head: null, stamp: 'BOSS: ON PURPOSE' };
       return did ? { kind: 'win', head: 'CRITICAL HIT', stamp: 'CRITICAL HIT' } : { kind: 'hurt', head: 'GRAZED IT', stamp: 'GRAZED IT' };
+    case 'quickdraw':
+      return r.drawSec != null && r.drawSec <= DRAW_SEC
+        ? { kind: 'win', head: 'QUICKDRAW', stamp: 'QUICKDRAW' }
+        : { kind: 'slow', head: null, stamp: 'QUICKDRAW' };
+    case 'blind': {
+      const v = timeVerdict(r.timeSaid, r.doneSec);
+      if (!v) return { kind: 'none', head: null, stamp: 'BLINDFOLD' };
+      return { kind: v, head: v === 'lie' ? 'TIME LIE' : v === 'called' ? 'CALLED THE CLOCK' : null, stamp: 'BLINDFOLD' };
+    }
+    case 'sequel':
+      return r.part === 2 ? { kind: 'win', head: 'PART 2', stamp: 'PART 2' } : { kind: 'one', head: null, stamp: 'PART 1' };
+    case 'hardcore':
+      return did ? { kind: 'win', head: 'HARDCORE', stamp: 'HARDCORE', bonus: 1 } : { kind: 'kinda', head: null, stamp: 'HARDCORE' };
     default:
       return null;
   }
@@ -807,6 +863,72 @@ export function followUpDue(receipts, today) {
     if (age >= 1 && age <= FOLLOW_UP_DAYS) return r;
   }
   return null;
+}
+
+// The big one with a date on it: asked about on that day, or the first open after it, for up to a week.
+// Not before. One at a time, the soonest date first.
+export const DATE_GRACE = 7;
+export function datedDue(receipts, today) {
+  let best = null;
+  for (const r of receipts || []) {
+    const due = r.fu?.type === 'plan' && r.fu.state === 'dated' ? r.fu.due : null;
+    if (!due || r.fu.snooze === today) continue;
+    const late = dayDiff(due, today);
+    if (late >= 0 && late <= DATE_GRACE && (!best || due < best.fu.due)) best = r;
+  }
+  return best;
+}
+// The next big one coming up on the calendar, for the look-back.
+export function datedAhead(receipts, today) {
+  const ahead = (receipts || []).filter((r) => r.fu?.type === 'plan' && r.fu.state === 'dated' && r.fu.due >= today);
+  return ahead.sort((a, b) => (a.fu.due < b.fu.due ? -1 : 1))[0] || null;
+}
+
+// ---------- the week, looked back on ----------
+// What moved in the last seven days, what came back around, what the brain got wrong, what's still out there.
+export const WEEK_DAYS = 7;
+export function weekLook(receipts, now = Date.now()) {
+  const list = receipts || [];
+  const since = now - WEEK_DAYS * 86400000;
+  const week = list.filter((r) => r.at > since && r.at <= now && !detectCrisis(r.thing || '') && !detectCrisisCheck(r.thing || ''));
+  const done = week.filter((r) => r.outcome !== 'bailed');
+  const key = (t) => String(t || '').trim().toLowerCase();
+  const seen = new Set();
+  const moved = [];
+  for (const r of done) {
+    const k = key(r.thing);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    moved.push(r);
+  }
+  // Came back for: done this week after chickening out of it before.
+  const comebacks = moved.filter((r) => list.some((x) => x.outcome === 'bailed' && x.at < r.at && key(x.thing) === key(r.thing)));
+  const checked = done.filter((r) => r.dread != null && r.reality != null);
+  const timed = done.filter((r) => r.thoughtMin && r.doneSec);
+  return {
+    days: new Set(week.map((r) => dateKey(new Date(r.at)))).size,
+    did: done.filter((r) => r.outcome === 'did').length,
+    kinda: done.filter((r) => r.outcome === 'some').length,
+    bailed: week.filter((r) => r.outcome === 'bailed').length,
+    moved,
+    comebacks,
+    lies: checked.filter((r) => r.reality < r.dread).length,
+    calls: checked.filter((r) => r.reality === r.dread).length,
+    thoughtMin: timed.reduce((a, r) => a + r.thoughtMin, 0),
+    doneSec: timed.reduce((a, r) => a + r.doneSec, 0),
+    open: unfinished(list, now, WEEK_DAYS),
+  };
+}
+
+// The look-back is offered once every seven days, starting a week after the first receipt,
+// and only if at least two things happened in that week.
+export function weekDue(receipts, lastLook, today, now = Date.now()) {
+  const list = receipts || [];
+  if (!list.length) return false;
+  const first = dateKey(new Date(Math.min(...list.map((r) => r.at))));
+  if (dayDiff(first, today) < WEEK_DAYS) return false;
+  if (lastLook && dayDiff(lastLook, today) < WEEK_DAYS) return false;
+  return list.filter((r) => r.at > now - WEEK_DAYS * 86400000).length >= 2;
 }
 
 // "yesterday", "2 days ago": how the card says when it happened.

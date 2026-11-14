@@ -5,7 +5,7 @@ import {
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
-  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES, ROUGH_LINES,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES, ROUGH_LINES, TIME_GUESSES, WEEK,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
@@ -21,7 +21,7 @@ const KEY = 'rmaxxing.v1';
 const DEFAULTS = {
   w: null, startW: null, typeName: null, quizSeconds: null, wis: C.START_WIS,
   streak: 0, lastDay: null, lastSeen: null, installLater: null,
-  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false, teasedOn: null, splashOn: null, dodgedOn: null,
+  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false, teasedOn: null, splashOn: null, dodgedOn: null, lookedOn: null,
   receipts: [], read: [], dailyDone: {}, active: null, trials: [],
 };
 
@@ -198,13 +198,16 @@ function ruleTomorrow() {
   return id && RULES[id] ? id : null;
 }
 // The label a rule round wears on every screen of the loop.
+// A one-way door handled on purpose doesn't play today's rule. The boss is the one rule built for it.
+const playsRule = (L) => !!L?.rule && (L.verdict !== 'think' || L.rule === 'boss');
 function ruleTag(L) {
   const R = L?.rule && RULES[L.rule];
-  if (!R) return '';
+  if (!R || !playsRule(L)) return '';
   const rec = recordText();
   let text = fill(R.tag, { round: L.round || 1 });
   if (L.rule === 'speedrun') text = rec ? fill(R.tag, { record: rec }) : R.tagFirst;
   if (L.rule === 'boss' && L.thoughtMin) text = fill(R.tagHp, { dodged: C.fmtDuration(L.thoughtMin).toUpperCase() });
+  if (L.rule === 'sequel' && L.part === 1) text = R.tagOne;
   return `<span class="rule-tag t-${L.rule}">${esc(text)}</span>`;
 }
 // A round started from home on a rule day plays by the rule.
@@ -212,14 +215,25 @@ function ruleRound() {
   const r = ruleNow();
   if (!r || r.done) return {};
   const R = RULES[r.id];
-  const base = { rule: r.id, round: r.rounds + 1, theme: { speedrun: 'lime', double: 'orange', minute: 'pink', pick: 'blue', boss: '' }[r.id] };
+  const base = { rule: r.id, round: r.rounds + 1, theme: { speedrun: 'lime', double: 'orange', minute: 'pink', pick: 'blue', boss: '', quickdraw: 'sun', blind: '', sequel: '', hardcore: '' }[r.id] };
   // The boss is the big one, so it gets the door check, like the court's sentence: a one-way door gets a plan, not a GO.
   if (r.id === 'boss') return { ...base, full: true, title: R.title, placeholder: R.placeholder };
   if (r.id === 'pick') return { ...base, step: 'pick' };
+  if (r.id === 'sequel') return { ...base, step: 'sequel' };
   if (r.id === 'minute') return { ...base, dur: 60 };
   if (r.id === 'double' && r.rounds) return { ...base, title: R.round2.title, placeholder: R.round2.placeholder };
   return base;
 }
+// Rules played on the dark screen instead of a bright one.
+const DARK_RULES = ['boss', 'blind', 'sequel', 'hardcore'];
+// QUICKDRAW: seconds from the first step showing up to GO. Measured once.
+function markDraw(L) {
+  if (L.rule === 'quickdraw' && L.drawAt && L.drawSec == null) L.drawSec = Math.round((Date.now() - L.drawAt) / 100) / 10;
+}
+const drawLeft = (L) => C.DRAW_SEC - (L.drawAt ? (Date.now() - L.drawAt) / 1000 : 0);
+const drawText = (L) => (drawLeft(L) > 0 ? fill(RULES.quickdraw.draw, { n: Math.ceil(drawLeft(L)) }) : RULES.quickdraw.late);
+// "TUE, NOV 18": how a picked date reads.
+const dueText = (key) => new Date(`${key}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
 const ruleSoon = (id) => `<b>${fill(RULES.soonTitle, { name: RULES[id].name })}</b><span>${RULES[id].tease}</span>`;
 const installed =() => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
 const buzz = (ms = 12) => haptic(typeof ms !== 'number' ? 'success' : ms >= 45 ? 'heavy' : ms >= 25 ? 'medium' : 'light');
@@ -360,7 +374,7 @@ function render() {
   const { tone = '', html } = fn();
   document.documentElement.dataset.tone = tone;
   // The tab screens start with the yellow ticker; the bright tones need dark status-bar text too.
-  statusBar(['home', 'method', 'receipts', 'vault'].includes(view.name) || ['sun', 'pink', 'lime', 'orange'].includes(tone));
+  statusBar(['home', 'method', 'receipts', 'vault', 'week'].includes(view.name) || ['sun', 'pink', 'lime', 'orange'].includes(tone));
   // {b} tokens in the copy become what the person picked to be called, once per screen.
   root.innerHTML = C.addr(html, S.who, 1);
   fitAll();
@@ -438,7 +452,7 @@ VIEWS.home = () => {
           <button class="mini" data-a="about" aria-label="About">?</button>
         </span>
       </header>
-      ${courtCard() || followUpCard()}
+      ${courtCard() || dateCard() || followUpCard() || weekCard()}
       <section class="hero">
         <button class="hero-brain" data-a="poke" aria-label="Poke the brain">${brainSVG(w, 'wobble')}${stickerSVG('NOT A THOUGHT ★ HEAD EMPTY ★ ')}<span class="bubble" aria-live="polite"></span></button>
         <h1 class="score">${w}% <small>WRINKLED${S.streak > 1 ? ` · ${S.streak}-DAY STREAK` : ''}</small></h1>
@@ -528,11 +542,14 @@ function followUpCard() {
     </div>`;
   }
   if (r.fu.type === 'plan') {
+    const answer = r.fu.picking
+      ? `${dateChooser(r, true)}<button class="link" data-a="fu-answer" data-id="${r.id}" data-v="date" data-skip="1">${FOLLOW_UP.date.skip}</button>`
+      : `<div class="fu-choices">${FOLLOW_UP.plan.choices.map(([v, label]) => `<button class="chip" data-a="fu-answer" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>`;
     return `<div class="fu-card">
       <p class="eyebrow">${ago} ${FOLLOW_UP.plan.eyebrow}</p>
-      <strong>${FOLLOW_UP.plan.title}</strong>
+      <strong>${r.fu.picking ? FOLLOW_UP.date.title : FOLLOW_UP.plan.title}</strong>
       <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}</button>
-      <div class="fu-choices">${FOLLOW_UP.plan.choices.map(([v, label]) => `<button class="chip" data-a="fu-answer" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>
+      ${answer}
     </div>`;
   }
   return `<div class="fu-card">
@@ -547,9 +564,56 @@ function followUpCard() {
   </div>`;
 }
 
+// The date for a big one: three quick picks, or the day itself. Once it's on file, just the date.
+// bare: inside a card that already has its own title.
+function dateChooser(r, bare = false) {
+  const D = FOLLOW_UP.date;
+  if (r.fu.state === 'dated' && !r.fu.picking) {
+    return `<div class="date-card done"><b>${fill(D.saved, { date: dueText(r.fu.due) })}</b><span>${D.savedSub}</span></div>`;
+  }
+  const today = C.dateKey();
+  return `<div class="date-card ${bare ? 'bare' : ''}">
+    ${bare ? '' : `<b>${D.title}</b><span>${D.sub}</span>`}
+    <div class="chips">${D.chips.map(([n, label]) => `<button class="chip" data-a="fu-date" data-id="${r.id}" data-n="${n}">${label}</button>`).join('')}</div>
+    <label class="date-pick"><span>${D.pick}</span><input type="date" class="field" data-c="fu-date" data-id="${r.id}" min="${C.addDays(today, 1)}" max="${C.addDays(today, 365)}"></label>
+  </div>`;
+}
+
+// On the day picked for the big one (or the first open after it, for a week): one card, no push.
+// The lock screen only ever said "you picked today".
+function dateCard() {
+  const today = C.dateKey();
+  const r = C.datedDue(S.receipts, today);
+  if (!r) return '';
+  const D = FOLLOW_UP.dated;
+  const eyebrow = r.fu.due === today ? D.today : fill(D.late, { day: dueText(r.fu.due) });
+  const body = r.fu.picking
+    ? dateChooser(r, true)
+    : `<p class="fu-sub">${D.sub}</p><div class="fu-choices">${D.choices.map(([v, label]) => `<button class="chip" data-a="fu-dated" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>`;
+  return `<div class="fu-card date-due">
+    <p class="eyebrow">${eyebrow}</p>
+    <strong>${r.fu.picking ? FOLLOW_UP.date.title : D.title}</strong>
+    ${peek(r)}
+    ${body}
+  </div>`;
+}
+
+// Once every seven days: the week, in one look.
+function weekCard() {
+  if (!C.weekDue(S.receipts, S.lookedOn, C.dateKey())) return '';
+  const w = C.weekLook(S.receipts);
+  const W = WEEK.card;
+  return `<button class="fu-card week-card" data-a="week">
+    <span class="eyebrow">${W.eyebrow}</span>
+    <strong>${W.title}</strong>
+    <span class="fu-sub">${fill(W.sub, { done: w.did + w.kinda, bailed: w.bailed })}</span>
+    <span class="court-go">${W.go} →</span>
+  </button>`;
+}
+
 // The answer, big, and shareable without the name in it.
 const verdictQ = (r, named) => (r.fu?.result === 'did' ? 'Remember the thing I chickened out of?'
-  : r.fu?.type === 'plan' ? 'Did the big one get a date?'
+  : r.fu?.type === 'plan' ? (['decided', 'talked'].includes(r.fu.result) ? 'The big one. Where’s it at?' : 'Did the big one get a date?')
     : `Did ${named && r.to ? r.to : 'they'} answer?`);
 const verdictLine = (r) => {
   const list = FOLLOW_UP.answers[r.fu.result] || FOLLOW_UP.answers.fine;
@@ -565,7 +629,7 @@ VIEWS.verdict = () => {
   const lies = lied ? C.trialCase(S.receipts).lies : 0;
   const sub = lied ? `You said ${DREAD[r.dread]}. It was fine. ${lies > 1 ? `Lie number ${lies}.` : 'Your brain lied.'}` : ans.sub;
   return {
-    tone: { fine: 'lime', weird: 'pink', read: 'blue', did: 'orange', date: 'blue', asked: 'lime' }[res] || 'lime',
+    tone: { fine: 'lime', weird: 'pink', read: 'blue', did: 'orange', date: 'blue', asked: 'lime', decided: 'lime', talked: 'blue' }[res] || 'lime',
     html: step({
       title: ans.a,
       max: 170,
@@ -583,6 +647,11 @@ VIEWS.verdict = () => {
 VIEWS.verdict.after = () => {
   if (!view.fresh) return;
   view.fresh = false;
+  // The big one gets a nod, not a party.
+  if (S.receipts.find((x) => x.id === view.id)?.fu?.type === 'plan') {
+    buzz(20);
+    return;
+  }
   sfx.boom();
   shake();
   buzz(40);
@@ -1022,20 +1091,26 @@ const STEPS = {
     const draftCard = offerDraft
       ? `<button class="draft-card" data-a="to-draft"><span class="eyebrow">Looks like a message</span><strong>WRITE IT FOR ME</strong><span class="tag">WRITE</span></button>`
       : think || L.rule === 'pick' ? '' : '<button class="link words-link" data-a="to-draft">Need words? Pick a message →</button>';
-    const dread = `<div class="dread-row" role="group" aria-label="How bad is it gonna go?">
+    // BLINDFOLD calls the time instead of how bad, and finds out at the end.
+    const timeRow = `<div class="dread-row" role="group" aria-label="How long will it take?">
+        <p class="eyebrow">${RULES.blind.guess}</p>
+        <div class="dread-pills">${TIME_GUESSES.map((g, i) => `<button class="pill-btn" data-a="time-pick" data-v="${i}" aria-pressed="${L.timeSaid === i}">${g.label}</button>`).join('')}</div>
+      </div>`;
+    const draw = L.rule === 'quickdraw' && !think ? `<p class="draw-clock ${drawLeft(L) > 0 ? '' : 'late'}" id="draw">${drawText(L)}</p>` : '';
+    const dread = L.rule === 'blind' && !think ? timeRow : `<div class="dread-row" role="group" aria-label="How bad is it gonna go?">
         <p class="eyebrow">Call it: how bad will it go? We check when you’re done.</p>
         <div class="dread-pills">${DREAD.map((d, i) => `<button class="pill-btn" data-a="dread-pick" data-v="${i}" aria-pressed="${L.dread === i}">${d.toUpperCase()}</button>`).join('')}</div>
       </div>`;
     return {
       tone: L.theme || '',
       html: step({
-        title: think ? 'THE FIRST|10 MINUTES:' : RULES[L.rule]?.fast || 'FIRST|TINY STEP:',
+        title: think ? 'THE FIRST|10 MINUTES:' : (L.part === 2 && RULES.sequel.fastPart2) || RULES[L.rule]?.fast || 'FIRST|TINY STEP:',
         eyebrow: ruleTag(L),
         max: 96,
         sub: (L.source === 'free' || L.source === 'retry') && L.thing !== L.move ? esc(L.thing) : '',
         progress: PROGRESS.fast,
         pin: true,
-        body: `<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step">${esc(L.move)}</textarea>${draftCard}${dread}${chips}`,
+        body: `${draw}<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step"${L.part === 2 ? ` placeholder="${esc(RULES.sequel.placeholder)}"` : ''}>${esc(L.move)}</textarea>${draftCard}${dread}${chips}`,
         foot: `<button class="btn mega" id="next" data-a="fast-go" ${L.move.trim() ? '' : 'disabled'}>GO</button>`,
       }),
     };
@@ -1081,11 +1156,11 @@ const STEPS = {
     if (R?.ready) title = running ? R.running : R.ready;
     if (L.verdict === 'think') title = running ? 'ON PURPOSE.' : 'TEN MINUTES.|ON PURPOSE.';
     // SPEEDRUN counts up against the record. THE BOSS shows its health; DONE is the hit.
-    const clock = speed ? C.fmtClock(running ? Math.floor(elapsedNow(L)) : 0) : C.fmtClock(running ? remaining(L) : L.dur);
+    const clock = R && L.rule === 'blind' ? RULES.blind.hidden : speed ? C.fmtClock(running ? Math.floor(elapsedNow(L)) : 0) : C.fmtClock(running ? remaining(L) : L.dur);
     const ghost = rec ? `<p class="ghost-record" id="ghost">${fill(RULES.speedrun.ghost, { record: rec })}</p>` : '';
     const hp = L.rule === 'boss' ? `<div class="boss-hp"><span>${RULES.boss.hp}</span><b><i></i></b></div>` : '';
     return {
-      tone: L.rule === 'boss' ? '' : L.theme || 'sun',
+      tone: DARK_RULES.includes(L.rule) ? '' : L.theme || 'sun',
       html: step({
         title,
         eyebrow: ruleTag(L),
@@ -1101,13 +1176,13 @@ const STEPS = {
           ${running ? '' : '<button class="link" data-a="objection">But what if…</button>'}
           <p class="sub center-text" id="clock-note"></p>`,
         foot: running
-          ? `<button class="btn mega" data-a="timer-done">DONE</button><div class="timer-links"><button class="link" data-a="timer-done" data-v="some">Kinda did it</button><button class="link" data-a="timer-bail">I chickened out</button></div>`
+          ? `<button class="btn mega" data-a="timer-done">DONE</button><div class="timer-links">${L.rule === 'hardcore' && playsRule(L) ? '' : '<button class="link" data-a="timer-done" data-v="some">Kinda did it</button>'}<button class="link" data-a="timer-bail">I chickened out</button></div>`
           : `<button class="btn mega" data-a="timer-go">GO</button>${L.dur === 600 ? '<button class="link" data-a="timer-short">Too much? Make it 2 minutes</button>' : ''}`,
       }),
     };
   },
 
-  outcome: () => ({
+  outcome: (L) => ({
     html: step({
       title: 'SO?',
       max: 200,
@@ -1115,7 +1190,7 @@ const STEPS = {
       back: false,
       body: `<div class="choices">
         <button class="choice" data-a="outcome" data-v="did">DID IT</button>
-        <button class="choice" data-a="outcome" data-v="some">KINDA</button>
+        ${L?.rule === 'hardcore' && playsRule(L) ? '' : '<button class="choice" data-a="outcome" data-v="some">KINDA</button>'}
         <button class="choice" data-a="outcome" data-v="bailed">CHICKENED OUT</button>
       </div>`,
     }),
@@ -1143,6 +1218,28 @@ const STEPS = {
           ${v && v.type !== 'rough' ? revealHTML(L, v) : ''}
           ${dodgeRow}`,
         foot: answered && !dodgeNeeded(L) ? `<button class="btn mega" data-a="tally-next">${REVEAL.next}</button>` : '',
+      }),
+    };
+  },
+
+  // PART 2: things they did or kinda did, to pick back up. Or their own thing, as part 1.
+  sequel: (L) => {
+    const R = RULES.sequel;
+    const list = C.sequelCandidates(S.receipts, C.dateKey());
+    const items = list.map((r) => `<button class="sequel-item" data-a="sequel-pick" data-id="${r.id}">
+        <strong>${esc(r.thing)}</strong>
+        <span>${r.outcome === 'some' ? R.kinda : R.done} · ${receiptDate(r.at)}</span>
+      </button>`).join('');
+    return {
+      tone: '',
+      html: step({
+        title: R.title,
+        eyebrow: ruleTag(L),
+        max: 110,
+        progress: PROGRESS.thing,
+        sub: list.length ? R.sub : R.none,
+        body: list.length ? `<div class="sequel-list">${items}</div>` : '',
+        foot: list.length ? `<button class="link" data-a="sequel-own">${R.own}</button>` : `<button class="btn mega" data-a="sequel-own">${R.start}</button>`,
       }),
     };
   },
@@ -1199,7 +1296,9 @@ VIEWS.loop = () => {
 };
 VIEWS.loop.after = () => {
   const L = S.active;
+  clearInterval(drawT);
   if (!L) return;
+  if (L.step === 'fast' && L.rule === 'quickdraw' && L.verdict !== 'think' && L.drawSec == null) startDraw(L);
   if (L.step === 'timer' && L.startedAt) startTick();
   if (L.step === 'draft') syncDraftLinks();
   // The stamp lands once: a boom for a lie, a womp when the brain called it.
@@ -1227,6 +1326,42 @@ VIEWS.loop.after = () => {
   }
 };
 
+// QUICKDRAW: the count from the moment the first step shows up. Starts once; a re-render picks it back up.
+let drawT = null;
+function startDraw(L) {
+  if (!L.drawAt) {
+    L.drawAt = Date.now();
+    save();
+  }
+  let last = null;
+  const tick = () => {
+    const el = document.getElementById('draw');
+    if (!el || S.active !== L || L.step !== 'fast' || L.drawSec != null) {
+      clearInterval(drawT);
+      return;
+    }
+    const left = drawLeft(L);
+    const sec = Math.ceil(left);
+    if (sec === last) return;
+    last = sec;
+    el.textContent = drawText(L);
+    if (left > 0) {
+      if (sec <= 3) sfx.tick(1 + (3 - sec) * 0.2);
+      return;
+    }
+    el.classList.add('late');
+    clearInterval(drawT);
+    if (!L.drawLate) {
+      L.drawLate = true;
+      save();
+      sfx.womp();
+      buzz(20);
+    }
+  };
+  tick();
+  drawT = setInterval(tick, 200);
+}
+
 function remaining(L) {
   return L.dur - (Date.now() - L.startedAt) / 1000;
 }
@@ -1252,11 +1387,13 @@ function startTick() {
   const record = S.active.rule === 'speedrun' ? C.speedRecord(S.receipts) : null;
   // ONE MINUTE ticks for the last ten seconds, everything else for the last five.
   const tickFrom = S.active.rule === 'minute' ? 10 : 5;
+  // BLINDFOLD: no clock, no countdown, no horn. They find out at the end.
+  const blind = S.active.rule === 'blind' && S.active.verdict !== 'think';
   const tick = () => {
     if (!S.active) return;
     const left = remaining(S.active);
     const gone = elapsedNow(S.active);
-    if (clock) clock.textContent = S.active.rule === 'speedrun' ? C.fmtClock(Math.floor(gone)) : C.fmtClock(left);
+    if (clock && !blind) clock.textContent = S.active.rule === 'speedrun' ? C.fmtClock(Math.floor(gone)) : C.fmtClock(left);
     if (ghost && record != null && gone > record && !ghost.classList.contains('past')) {
       ghost.classList.add('past');
       ghost.textContent = RULES.speedrun.past;
@@ -1266,11 +1403,11 @@ function startTick() {
       nextHype();
     }
     const sec = Math.ceil(left);
-    if (left > 0 && sec <= tickFrom && sec !== lastCount) {
+    if (!blind && left > 0 && sec <= tickFrom && sec !== lastCount) {
       lastCount = sec;
       sfx.tick(1 + (tickFrom - sec) * (0.6 / tickFrom));
     }
-    if (left <= 0 && !rang) {
+    if (!blind && left <= 0 && !rang) {
       rang = true;
       if (hype) hype.textContent = '';
       buzz([120, 60, 120]);
@@ -1323,8 +1460,12 @@ function finishLoop() {
     fu: C.followUpFor(L),
     draft: L.draft || null,
     closer: fresh('closer', CLOSERS).item,
-    rule: L.rule || null,
-    round: L.rule ? L.round || 1 : null,
+    // A one-way door doesn't count for the day's rule: no score, and the rule is still there to play.
+    rule: playsRule(L) ? L.rule : null,
+    round: playsRule(L) ? L.round || 1 : null,
+    ...(playsRule(L) && L.rule === 'quickdraw' ? { drawSec: L.drawSec ?? null } : {}),
+    ...(playsRule(L) && L.timeSaid != null ? { timeSaid: L.timeSaid } : {}),
+    ...(L.part ? { part: L.part, of: L.of || null } : {}),
   };
   // Today's rule: what this round earned, the stamp it leaves on the receipt, and any bonus.
   const result = C.ruleResult(receipt, S.receipts, { think: L.verdict === 'think' });
@@ -1407,6 +1548,8 @@ function receiptHTML(r, showThing) {
   rows.push(['Did it in', bailed ? 'Not today' : `${kinda ? 'Kinda. ' : ''}${C.fmtDid(r.doneSec)}`]);
   if (r.dread != null) rows.push(['You said', DREAD[r.dread]]);
   if (r.reality != null) rows.push(['It was', DREAD[r.reality]]);
+  if (r.timeSaid != null) rows.push(['You guessed', TIME_GUESSES[r.timeSaid]?.word || '?']);
+  if (r.drawSec != null) rows.push(['Drew in', `${r.drawSec.toFixed(1)} sec`]);
   rows.push(['Thoughts', bailed ? 'Many' : '0']);
   const x = bailed ? null : C.ratio(r.thoughtMin, r.doneSec);
   const bigText = bailed ? 'CHICKENED OUT' : x ? C.fmtRatio(x) : 'DONE';
@@ -1497,12 +1640,13 @@ VIEWS.close = () => {
       ${forgiven ? '<p class="forgiven">You skipped yesterday. Streak kept. A day off is a day off.</p>' : ''}
       ${view.bailStreak > 1 ? `<p class="forgiven">${view.bailStreak}-day streak. Showing up counts.</p>` : ''}
       ${view.rule ? ruleResultHTML(view.rule, r) : ''}
+      ${r.fu?.type === 'plan' && ['open', 'dated'].includes(r.fu.state) ? dateChooser(r) : ''}
       ${drip ? dripCard(drip, after) : ''}
       ${view.revealed ? '' : credMove(r)}
       ${court ? `<div class="court-soon"><b>${fill(TRIAL.soonTitle, { name: TRIAL.levels[court].name })}</b><span>${TRIAL.levels[court].soon}</span></div>` : ''}
       ${ruleNext ? `<div class="court-soon rule-soon t-${ruleNext}">${ruleSoon(ruleNext)}</div>` : ''}
       ${(view.firstEver || r.fu || court || ruleNext) && canNudge() && !S.nudge && !view.nudgeAsked ? `<div class="nudge-card">
-        <b>${court ? TRIAL.offer : r.fu ? FOLLOW_UP.offer[r.fu.type] : ruleNext ? fill(RULES.offer, { name: RULES[ruleNext].name }) : 'WANT A NUDGE TOMORROW?'}</b>
+        <b>${court ? TRIAL.offer : r.fu ? FOLLOW_UP.offer[r.fu.state === 'dated' ? 'dated' : r.fu.type] : ruleNext ? fill(RULES.offer, { name: RULES[ruleNext].name }) : 'WANT A NUDGE TOMORROW?'}</b>
         <span>${r.fu ? FOLLOW_UP.offer.sub : 'One a day. Skipped if you’ve already done something.'}</span>
         <div class="chips">${[[15, 30, 'AFTER SCHOOL'], [18, 0, '6 PM'], [21, 0, '9 PM']].map(([h, m, label]) => `<button class="chip" data-a="nudge" data-h="${h}" data-m="${m}">${label}</button>`).join('')}<button class="chip" data-a="nudge" data-h="">NAH</button></div>
       </div>` : ''}
@@ -1525,16 +1669,19 @@ function ruleResultHTML(rr, r) {
   if (!ln) return '';
   if (rr.id === 'boss' && rr.kind === 'win' && !r.thoughtMin) ln = R.lines.winNoTime;
   const o = {
-    time: C.fmtClock(r.doneSec || 0),
+    time: rr.id === 'blind' ? C.fmtDid(r.doneSec || 0) : C.fmtClock(r.doneSec || 0),
     old: rr.record != null ? C.fmtClock(rr.record) : '',
     did: C.fmtDid(r.doneSec || 0),
     dodged: r.thoughtMin ? C.fmtDuration(r.thoughtMin) : '',
+    said: TIME_GUESSES[r.timeSaid]?.word || '',
+    draw: r.drawSec != null ? `${r.drawSec.toFixed(1)} SEC` : '',
+    drawWords: r.drawSec != null ? `${r.drawSec.toFixed(1)} seconds` : 'A while',
   };
   const sub = fill(ln.sub, o);
   const more = rr.id === 'double' && rr.kind === 'round' ? `<button class="btn" data-a="start">${R.next}</button>` : '';
   return `<div class="rule-result t-${rr.id}">
     <span class="eyebrow">DAY ${rr.n} · ${R.name}</span>
-    <strong>${esc(fill(ln.title, o))}</strong>
+    <strong>${esc(fill(ln.title, o).toUpperCase())}</strong>
     <span>${esc(sub.charAt(0).toUpperCase() + sub.slice(1))}</span>
     ${more}
   </div>`;
@@ -1623,6 +1770,7 @@ VIEWS.close.after = () => {
 
 VIEWS.receipts = () => {
   const stats = C.lifetime(S.receipts);
+  const wk = C.weekLook(S.receipts);
   if (!S.receipts.length) {
     return {
       html: tabs('receipts', `${big('NO RECEIPTS.|THAT’S THE|PROBLEM.', { max: 110 })}
@@ -1645,12 +1793,51 @@ VIEWS.receipts = () => {
         <div class="stat"><b>${S.streak || 0}</b><span>day streak</span></div>
       </div>
       <button class="btn mega" data-a="share-lifetime" style="margin-top:14px">SHARE THE WHOLE RECORD</button>
+      ${wk.moved.length || wk.bailed ? `<button class="btn ghost week-link" data-a="week">${WEEK.link} →</button>` : ''}
       <p class="eyebrow section-label">History</p>
       <ul class="log">${S.receipts.map((r) => `<li><button class="log-item" data-a="open-receipt" data-id="${r.id}">
         <strong>${r.legendary ? '<span class="star" aria-label="Legendary">★</span> ' : ''}${esc(r.thing)}</strong>
         <span>${new Date(r.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
         <em>${r.outcome === 'bailed' ? 'chickened out' : `${r.outcome === 'some' ? 'kinda · ' : ''}${C.fmtDid(r.doneSec)}`}</em>
       </button></li>`).join('')}</ul>`),
+  };
+};
+
+// The week, looked back on: what came back around, what else moved, the big one's date, what's still out there.
+VIEWS.week = () => {
+  const w = C.weekLook(S.receipts);
+  const done = w.did + w.kinda;
+  const things = (n) => (n === 1 ? 'one thing' : `${n} things`);
+  const L = WEEK.lines;
+  let line = WEEK.empty;
+  if (w.comebacks.length) line = fill(L.comeback, { things: things(w.comebacks.length) });
+  else if (w.lies >= 2) line = fill(L.lies, { lies: w.lies });
+  else if (w.bailed > done) line = fill(L.bailed, { days: w.days });
+  else if (done > 2) line = fill(L.done, { things: things(done) });
+  else if (done || w.bailed) line = fill(L.quiet, { things: things(done) });
+  const item = (r) => `<li><button class="log-item" data-a="open-receipt" data-id="${r.id}">
+      <strong>${esc(r.thing)}</strong>
+      <span>${new Date(r.at).toLocaleDateString('en-US', { weekday: 'long' })}</span>
+      <em>${r.outcome === 'some' ? 'kinda' : C.fmtDid(r.doneSec)}</em>
+    </button></li>`;
+  const back = new Set(w.comebacks.map((r) => r.id));
+  const rest = w.moved.filter((r) => !back.has(r.id));
+  const ahead = C.datedAhead(S.receipts, C.dateKey());
+  const section = (label, html) => `<p class="eyebrow section-label">${label}</p>${html}`;
+  return {
+    html: tabs('receipts', `${big(WEEK.title, { max: 110 })}
+      <p class="week-line">${esc(line)}</p>
+      <div class="stats">
+        <div class="stat"><b>${done}</b><span>${WEEK.stats.done}</span></div>
+        <div class="stat"><b>${w.bailed}</b><span>${WEEK.stats.bailed}</span></div>
+        <div class="stat"><b>${w.days}</b><span>${WEEK.stats.days}</span></div>
+        <div class="stat"><b>${w.lies}</b><span>${WEEK.stats.lies}</span></div>
+      </div>
+      ${w.comebacks.length ? section(WEEK.comebacks, `<ul class="log">${w.comebacks.map(item).join('')}</ul>`) : ''}
+      ${rest.length ? section(WEEK.moved, `<ul class="log">${rest.slice(0, 10).map(item).join('')}</ul>`) : ''}
+      ${ahead ? section(WEEK.ahead, `<div class="week-ahead">${peek(ahead)}<p>${fill(WEEK.aheadLine, { date: dueText(ahead.fu.due) })}</p></div>`) : ''}
+      ${w.open.length ? section(WEEK.open, `<ul class="week-open">${w.open.slice(0, 3).map((r) => `<li><span>${esc(r.thing)}</span><button class="chip" data-a="week-retry" data-id="${r.id}">${WEEK.retry}</button></li>`).join('')}</ul>`) : ''}
+      <button class="btn ghost week-back" data-a="tab" data-to="home">${WEEK.back}</button>`),
   };
 };
 
@@ -2095,6 +2282,9 @@ function refreshNudges() {
   // A follow-up that will be due goes out first. Lock screens are public, so never the thing or a name.
   const fu = C.followUpDue(S.receipts, C.dateKey(new Date(Date.now() + 86400000)));
   if (fu) lines.unshift(FOLLOW_UP.nudge[fu.fu.type]);
+  // The big one's day: "you picked today", never what it is.
+  const dated = times[0] && C.datedDue(S.receipts, C.dateKey(times[0]));
+  if (dated && dated.fu.due === C.dateKey(times[0])) lines.unshift(FOLLOW_UP.nudge.dated);
   // Brain court beats everything on the day it's in session.
   if (times[0] && C.trialDue(S.receipts, S.trials, C.dateKey(times[0]))) lines.unshift(TRIAL.nudge);
   return scheduleNudges(times, lines);
@@ -2163,6 +2353,22 @@ function shareSheet(blob, text, filename) {
 
 // ---------- actions ----------
 
+// ROUND 2 on something they chickened out of: straight to the first step, by today's rule where it fits.
+function retryLoop(r) {
+  const rr = ruleRound();
+  const byRule = ['speedrun', 'double', 'minute', 'quickdraw', 'blind', 'hardcore'].includes(rr.rule) ? { rule: rr.rule, round: rr.round, theme: rr.theme, ...(rr.dur ? { dur: rr.dur } : {}) } : {};
+  const L = newLoop({ thing: r.thing, source: 'retry', step: 'fast', verdict: 'send', ...byRule });
+  L.move = suggestFor(L);
+  if (r.kind) L.draftKind = r.kind;
+  if (r.draft) {
+    L.draft = r.draft;
+    L.draftEdited = true;
+  }
+  S.active = L;
+  save();
+  return go('loop');
+}
+
 function startLoop(fields) {
   S.active = newLoop(fields);
   save();
@@ -2189,6 +2395,7 @@ function suggestFor(L) {
 function startDraftClock(copied) {
   const L = S.active;
   if (!L || L.step !== 'draft') return;
+  markDraw(L);
   L.move = 'Send it.';
   L.dur = L.rule === 'minute' ? 60 : 120;
   L.startedAt = Date.now();
@@ -2202,7 +2409,7 @@ function startDraftClock(copied) {
 // Nor for something the app handed them (a dare, the daily mission, the envelope), or round 2 of BACK TO BACK.
 // And once a day at most: three testers in a row called it a form by the second round.
 function dodgeNeeded(L) {
-  const handed = ['dare', 'daily'].includes(L.source) || L.rule === 'pick' || (L.rule === 'double' && L.round > 1);
+  const handed = ['dare', 'daily'].includes(L.source) || L.rule === 'pick' || (L.rule === 'double' && L.round > 1) || L.part === 2;
   return L.thoughtMin == null && !L.dodged && L.source !== 'check' && !handed && S.dodgedOn !== C.dateKey();
 }
 
@@ -2294,6 +2501,24 @@ const ACTIONS = {
     const L = S.active;
     if (!L) return undefined;
     Object.assign(L, { rule: null, round: null, picked: false, rerolled: false, thing: '', move: '', step: 'thing', trail: [] });
+    save();
+    return go('loop');
+  },
+  // PART 2: one of their own things, picked back up. The next bit is theirs to write.
+  'sequel-pick': (d) => {
+    const L = S.active;
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!L || !r) return undefined;
+    Object.assign(L, { thing: r.thing, move: '', part: 2, of: r.id, verdict: 'send', draftKind: null });
+    buzz(30);
+    sfx.unlock();
+    return loopTo('fast');
+  },
+  // Their own thing: it plays as part 1 of something.
+  'sequel-own': () => {
+    const L = S.active;
+    if (!L) return undefined;
+    Object.assign(L, { part: 1, step: 'thing', trail: [] });
     save();
     return go('loop');
   },
@@ -2473,6 +2698,14 @@ const ACTIONS = {
     buzz();
     el.parentElement.querySelectorAll('[data-a=dread-pick]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === L.dread)));
   },
+  'time-pick': (d, el) => {
+    const L = S.active;
+    const v = Number(d.v);
+    L.timeSaid = L.timeSaid === v ? null : v;
+    save();
+    buzz();
+    el.parentElement.querySelectorAll('[data-a=time-pick]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === L.timeSaid)));
+  },
   'fast-go': () => {
     const L = S.active;
     L.move = L.move.trim();
@@ -2480,6 +2713,7 @@ const ACTIONS = {
     if (C.detectCrisis(L.move)) return go('crisis');
     if (L.draftKind && L.dur === 600) L.dur = 120;
     if (!L.jokeOk && C.detectCrisisCheck(L.move)) return go('crisisCheck', { next: 'fast-go' });
+    markDraw(L);
     L.startedAt = Date.now();
     buzz(30);
     sfx.windup();
@@ -2714,6 +2948,12 @@ const ACTIONS = {
   'fu-answer': (d) => {
     const r = S.receipts.find((x) => x.id === d.id);
     if (!r?.fu) return undefined;
+    // IT HAS A DATE: which day? Then it gets asked about on that day. "Rather not say" keeps the plain answer.
+    if (d.v === 'date' && r.fu.type === 'plan' && !d.skip) {
+      r.fu.picking = true;
+      save();
+      return render();
+    }
     if (d.v === 'wait') {
       r.fu.asks = (r.fu.asks || 0) + 1;
       r.fu.snooze = C.dateKey();
@@ -2743,18 +2983,66 @@ const ACTIONS = {
     if (!r?.fu) return undefined;
     r.fu.state = 'done';
     r.fu.result = 'retry';
-    const rr = ruleRound();
-    const byRule = ['speedrun', 'double', 'minute'].includes(rr.rule) ? { rule: rr.rule, round: rr.round, theme: rr.theme, ...(rr.dur ? { dur: rr.dur } : {}) } : {};
-    const L = newLoop({ thing: r.thing, source: 'retry', step: 'fast', verdict: 'send', ...byRule });
-    L.move = suggestFor(L);
-    if (r.kind) L.draftKind = r.kind;
-    if (r.draft) {
-      L.draft = r.draft;
-      L.draftEdited = true;
+    return retryLoop(r);
+  },
+  // A date for the big one: from its receipt, from "did it get a date?", or a new one on the day itself.
+  'fu-date': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.fu || r.fu.type !== 'plan') return undefined;
+    const today = C.dateKey();
+    const key = d.key || (d.n ? C.addDays(today, Number(d.n)) : '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key <= today) return toast(FOLLOW_UP.date.early);
+    const asked = r.fu.state === 'open' && view.name !== 'close';
+    const moved = r.fu.state === 'dated';
+    Object.assign(r.fu, { state: 'dated', due: key, picking: false, snooze: null });
+    buzz(20);
+    if (asked) {
+      r.fu.result = 'date';
+      r.fu.line = fresh('verdict-date', FOLLOW_UP.answers.date.map((x) => x.a)).index;
+      S.wis += 1;
+      save();
+      refreshNudges();
+      return go('verdict', { id: r.id, fresh: true });
     }
-    S.active = L;
     save();
-    return go('loop');
+    refreshNudges();
+    render();
+    return toast(moved ? FOLLOW_UP.date.moved : FOLLOW_UP.date.toast);
+  },
+  // The big one, on its day. No push either way; a new date just goes back on file.
+  'fu-dated': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.fu) return undefined;
+    if (d.v === 'moved') {
+      r.fu.picking = true;
+      save();
+      return render();
+    }
+    if (d.v === 'drop') {
+      Object.assign(r.fu, { state: 'skipped', result: 'drop' });
+      save();
+      refreshNudges();
+      render();
+      return toast(FOLLOW_UP.drop);
+    }
+    Object.assign(r.fu, { state: 'done', result: d.v });
+    r.fu.line = fresh(`verdict-${d.v}`, FOLLOW_UP.answers[d.v].map((x) => x.a)).index;
+    S.wis += 1;
+    save();
+    refreshNudges();
+    return go('verdict', { id: r.id, fresh: true });
+  },
+  // ROUND 2 from the week look-back, for anything still on the table.
+  'week-retry': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r) return undefined;
+    if (r.fu?.type === 'retry' && r.fu.state === 'open') Object.assign(r.fu, { state: 'done', result: 'retry' });
+    return retryLoop(r);
+  },
+  week: () => {
+    S.lookedOn = C.dateKey();
+    save();
+    go('week');
   },
   trial: () => {
     const lvl = trialToday();
@@ -3069,6 +3357,7 @@ root.addEventListener('change', (e) => {
     view.showThing = e.target.checked;
     render();
   }
+  if (e.target.dataset?.c === 'fu-date' && e.target.value) ACTIONS['fu-date']({ id: e.target.dataset.id, key: e.target.value });
 });
 
 window.addEventListener('resize', fitAll);

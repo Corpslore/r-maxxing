@@ -1,7 +1,7 @@
 // Share images, drawn on canvas. 1080x1920 fits Stories, Reels and TikTok.
 
 import { drawBrain } from './brain.js';
-import { BRAND, CLOSER, DREAD, PUBLIC_URL } from './content.js';
+import { BRAND, CLOSER, DREAD, PUBLIC_URL, TIME_GUESSES } from './content.js';
 import { addr, fmtDid, fmtDuration, fmtRatio, intOf, ratio, thoughtsPerMinute } from './core.js';
 
 const SUN = '#FFE500';
@@ -327,6 +327,8 @@ export function renderReceiptCard(r, showThing, skin = null) {
   rows.push(['DID IT IN', bailed ? 'NOT TODAY' : `${kinda ? 'KINDA. ' : ''}${fmtDid(r.doneSec).toUpperCase()}`]);
   if (r.dread != null) rows.push(['YOU SAID', DREAD[r.dread].toUpperCase()]);
   if (r.reality != null) rows.push(['IT WAS', DREAD[r.reality].toUpperCase()]);
+  if (r.timeSaid != null) rows.push(['YOU GUESSED', (TIME_GUESSES[r.timeSaid]?.word || '?').toUpperCase()]);
+  if (r.drawSec != null) rows.push(['DREW IN', `${r.drawSec.toFixed(1)} SEC`]);
   rows.push(['THOUGHTS', bailed ? 'MANY' : '0']);
   const x = bailed ? null : ratio(r.thoughtMin, r.doneSec);
   const big = bailed ? 'CHICKENED OUT' : x ? fmtRatio(x) : 'DONE';

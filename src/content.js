@@ -943,6 +943,35 @@ export const FOLLOW_UP = {
       { a: 'DID IT|ANYWAY.', sub: 'Bailing is free. Coming back is legend behavior.' },
       { a: 'ROUND 2.|K.O.', sub: 'Chickened out, came back, did it. That’s the whole method.' },
     ],
+    decided: [
+      { a: 'DECIDED.', sub: 'That was a big one, and it’s decided. The brain can put it down now.' },
+      { a: 'IT HAS|AN ANSWER.', sub: 'The big one is decided. That was the hard part, and it’s behind you.' },
+    ],
+    talked: [
+      { a: 'NOT ALONE|ON IT|ANYMORE.', sub: 'Somebody who knows now knows. If it still needs deciding, give it a new date.' },
+      { a: 'SOMEBODY|ELSE KNOWS.', sub: 'That’s how a big one gets handled. If it still needs deciding, give it a new date.' },
+    ],
+  },
+  // The date, picked on the receipt of a one-way door or after IT HAS A DATE. Asked about on that day only.
+  date: {
+    title: 'WHAT’S THE DATE?',
+    sub: 'We’ll ask about it that day. Only that day, and the lock screen never says what it is.',
+    chips: [[3, 'IN 3 DAYS'], [7, 'IN A WEEK'], [14, 'IN 2 WEEKS']],
+    pick: 'Or pick the day',
+    saved: 'ON FILE: {date}',
+    savedSub: 'We’ll ask that day. Until then, the brain can clock out.',
+    skip: 'I’d rather not say',
+    toast: 'On file. We’ll ask that day.',
+    moved: 'New date. On file.',
+    early: 'Pick a day after today.',
+  },
+  // On the day itself (or the first open after it, for a week).
+  dated: {
+    today: 'YOU PICKED TODAY',
+    late: 'YOU PICKED {day}',
+    title: 'THE BIG ONE.',
+    sub: 'No push from us. Where’s it at?',
+    choices: [['decided', 'DECIDED'], ['talked', 'TALKED TO SOMEBODY'], ['moved', 'NEEDS A NEW DATE'], ['drop', 'LETTING IT GO']],
   },
   wait: 'Okay. We’ll ask again tomorrow.',
   // For a message that never went out: no verdict, no evidence, off the list.
@@ -950,9 +979,9 @@ export const FOLLOW_UP = {
   skip: 'No penalty. It’ll still be there when you are.',
   drop: 'Deciding not to is a decision. No penalty.',
   // The reminder that goes out on the next day. Never the thing or a name: lock screens are public.
-  nudge: { reply: 'Did they answer? The brain needs to know.', retry: 'Round 2 is one button. You know the one.', plan: 'The big one. Did it get a date?' },
+  nudge: { reply: 'Did they answer? The brain needs to know.', retry: 'Round 2 is one button. You know the one.', plan: 'The big one. Did it get a date?', dated: 'You picked today for the big one. Just checking in.' },
   // Asked on the receipt, when there's something to follow up.
-  offer: { reply: 'WANT THE VERDICT?', retry: 'ROUND 2 TOMORROW?', plan: 'CHECK ON IT IN A DAY OR TWO?', sub: 'One nudge a day. Skipped if you’ve already done something.' },
+  offer: { reply: 'WANT THE VERDICT?', retry: 'ROUND 2 TOMORROW?', plan: 'CHECK ON IT IN A DAY OR TWO?', dated: 'WANT A NUDGE THAT DAY?', sub: 'One nudge a day. Skipped if you’ve already done something.' },
 };
 
 // ---------- brain court ----------
@@ -1142,6 +1171,68 @@ export const RULES = {
       think: { title: 'BOSS: HANDLED ON PURPOSE.', sub: 'Some bosses get a plan, not a GO. A date and a person who knows is a hit.' },
     },
   },
+  // Week 2. Each one changes a different part of the round: the start, the clock, the thing, the ending.
+  quickdraw: {
+    name: 'QUICKDRAW',
+    card: 'The first step is already written. Hit GO inside 10 seconds.',
+    tease: 'Hit GO inside 10 seconds. No reading it twice.',
+    tag: 'QUICKDRAW · 10 SECONDS',
+    fast: 'QUICKDRAW.|FIRST STEP:',
+    draw: 'DRAW: {n}',
+    late: 'THE BRAIN DREW FIRST. GO ANYWAY.',
+    lines: {
+      win: { title: 'DREW IN {draw}.', sub: 'GO before the brain finished its first sentence.' },
+      slow: { title: 'THE BRAIN DREW FIRST.', sub: '{drawWords} to hit GO. You went anyway, so it still lost.' },
+    },
+  },
+  blind: {
+    name: 'BLINDFOLD',
+    card: 'No clock today. Call how long it’ll take, then find out.',
+    tease: 'No clock. Call how long it’ll take.',
+    tag: 'BLINDFOLD · NO CLOCK',
+    guess: 'Call it: how long will this take? You find out when you’re done.',
+    hidden: '?:??',
+    ready: 'NO|CLOCK.',
+    running: 'NO CLOCK.|JUST GO.',
+    lines: {
+      lie: { title: 'IT LIED ABOUT TIME.', sub: 'It said {said}. It took {time}. The brain pads every estimate.' },
+      called: { title: 'CALLED THE CLOCK.', sub: 'It said {said}. It took {time}. One point for the brain.' },
+      worse: { title: 'TOOK LONGER.', sub: 'It said {said}. It took {time}. Done anyway, and done was the job.' },
+      none: { title: 'IT TOOK {time}.', sub: 'No guess on file, so nothing to check. Next time, call it first.' },
+    },
+  },
+  sequel: {
+    name: 'PART 2',
+    card: 'Pick up something you started. Do the next bit.',
+    tease: 'Pick up something you started. Do the next bit.',
+    tag: 'PART 2',
+    tagOne: 'PART 1',
+    title: 'PART 2.|PICK ONE|BACK UP.',
+    sub: 'Things you did or kinda did. Big things get finished in parts.',
+    none: 'Nothing from the last two weeks to pick back up. Today’s round is part 1 of something.',
+    start: 'START PART 1',
+    own: 'Not these. I’ve got my own thing.',
+    kinda: 'KINDA',
+    done: 'DONE',
+    fastPart2: 'PART 2.|NEXT BIT:',
+    placeholder: 'the next tiny bit of it',
+    lines: {
+      win: { title: 'PART 2: DONE.', sub: 'It moved again. Big things get finished in parts, not in one go.' },
+      one: { title: 'PART 1 IS ON FILE.', sub: 'Next time PART 2 comes up, this one is on the list.' },
+    },
+  },
+  hardcore: {
+    name: 'HARDCORE',
+    card: 'No “kinda” today. You did it, or you didn’t.',
+    tease: 'No “kinda”. You did it, or you didn’t.',
+    tag: 'HARDCORE · NO KINDA',
+    ready: 'HARDCORE.|NO KINDA.',
+    running: 'ALL THE|WAY.',
+    lines: {
+      win: { title: 'HARDCORE: CLEARED.', sub: 'No kinda, no hedge. All the way. Bonus WIS.' },
+      kinda: { title: 'KINDA ISN’T HARDCORE.', sub: 'It still counts. Hardcore comes back around.' },
+    },
+  },
   today: 'DAY {n} · TODAY’S RULE',
   done: 'DAY {n} · {name} ✓ DONE',
   progress: '{rounds} OF {need}',
@@ -1149,6 +1240,38 @@ export const RULES = {
   // Lock screens are public: the rule only, never the thing or a name.
   nudge: 'Today’s rule: {name}. {tease}',
   offer: 'TOMORROW: {name}. WANT A HEADS-UP?',
+};
+
+// BLINDFOLD's guesses. Each covers up to the next cut in core.TIME_CUTS.
+export const TIME_GUESSES = [
+  { label: '1 MIN', word: '1 min' },
+  { label: '5 MIN', word: '5 min' },
+  { label: '15 MIN', word: '15 min' },
+  { label: 'AN HOUR', word: 'an hour' },
+];
+
+// ---------- the week, looked back on ----------
+// Once every seven days: what moved, what came back around, what's still out there. {things} is "one thing" or "4 things".
+export const WEEK = {
+  card: { eyebrow: 'SEVEN DAYS', title: 'YOUR WEEK IS IN.', sub: '{done} done. {bailed} chickened out. One look.', go: 'LOOK' },
+  title: 'YOUR|WEEK.',
+  stats: { done: 'done or kinda', bailed: 'chickened out', days: 'days you showed up', lies: 'brain lies caught' },
+  moved: 'What moved',
+  comebacks: 'Came back for',
+  ahead: 'The big one',
+  aheadLine: 'On file for {date}. We’ll ask that day.',
+  open: 'Still on the table',
+  retry: 'ROUND 2',
+  lines: {
+    comeback: 'You came back for {things} you’d chickened out of. That’s the whole method.',
+    lies: 'The brain lied {lies} times this week. It isn’t learning. You are.',
+    bailed: 'More chickened out than done. You still showed up {days} days, and showing up is the habit.',
+    quiet: 'Quiet week. Still: {things} done, and that’s more than the brain wanted.',
+    done: '{things} moved this week. Every one of them was supposed to be a whole thing.',
+  },
+  empty: 'Nothing in the last seven days yet. The week starts with one.',
+  link: 'THIS WEEK',
+  back: 'MOVE ON',
 };
 
 // The brain caught lying, by count: lie 1, 2 and 3 in order, then a rotation.
