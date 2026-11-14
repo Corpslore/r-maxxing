@@ -5,7 +5,7 @@ import {
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
-  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES, ROUGH_LINES,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
@@ -21,7 +21,7 @@ const KEY = 'rmaxxing.v1';
 const DEFAULTS = {
   w: null, startW: null, typeName: null, quizSeconds: null, wis: C.START_WIS,
   streak: 0, lastDay: null, lastSeen: null, installLater: null,
-  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false, teasedOn: null,
+  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false, teasedOn: null, splashOn: null,
   receipts: [], read: [], dailyDone: {}, active: null, trials: [],
 };
 
@@ -1159,7 +1159,7 @@ const STEPS = {
         progress: PROGRESS.thing,
         center: true,
         body: open
-          ? `<div class="envelope open"><span class="eyebrow">${R.picked}</span><strong>${esc(L.thing)}</strong></div>`
+          ? `<div class="envelope open"><span class="eyebrow">${L.pickedYours ? R.pickedYours : R.picked}</span><strong>${esc(L.thing)}</strong></div>`
           : `<button class="envelope" data-a="pick-open"><span>${R.sealed}</span></button>`,
         foot: `${open ? `<button class="btn mega" data-a="pick-deal">${R.deal}</button>${reroll}` : ''}
           <button class="link" data-a="pick-own">${R.own}</button>`,
@@ -1259,7 +1259,7 @@ function startTick() {
       ghost.classList.add('past');
       ghost.textContent = RULES.speedrun.past;
     }
-    if (Date.now() - hypeAt > 15000) {
+    if (!rang && Date.now() - hypeAt > 15000) {
       hypeAt = Date.now();
       nextHype();
     }
@@ -1270,6 +1270,7 @@ function startTick() {
     }
     if (left <= 0 && !rang) {
       rang = true;
+      if (hype) hype.textContent = '';
       buzz([120, 60, 120]);
       sfx.horn();
       if (note) note.textContent = 'Time. You can stop now.';
@@ -1342,6 +1343,13 @@ function finishLoop() {
     source: L.source,
     think: L.verdict === 'think',
   });
+  // Did a thing they'd chickened out of (the envelope, or just trying again): its "ROUND 2?" is answered.
+  if (L.outcome !== 'bailed') {
+    const same = (t) => String(t || '').trim().toLowerCase() === String(L.thing || '').trim().toLowerCase();
+    S.receipts.forEach((x) => {
+      if (x.fu?.type === 'retry' && x.fu.state === 'open' && same(x.thing)) Object.assign(x.fu, { state: 'done', result: 'did' });
+    });
+  }
   S.receipts.unshift(receipt);
   S.w = after;
   S.wis += wisDelta + bonus;
@@ -1376,11 +1384,13 @@ function finishLoop() {
   const ruleNext = !court && (!ruleNowAfter || ruleNowAfter.done) ? ruleTomorrow() : null;
   const tease = (court || ruleNext) && S.teasedOn !== today ? { court, rule: ruleNext } : null;
   if (tease) S.teasedOn = today;
+  const splash = S.splashOn !== today || !!result?.head || !!receipt.legendary || L.outcome === 'bailed';
+  if (splash) S.splashOn = today;
   save();
   refreshNudges();
   const flash = receipt.legendary ? 'sun' : fresh('flash', FLASHES).item;
   // A one-way door closes quietly: no unlock cards (they still open, and show in METHOD), no confetti.
-  go('close', { receipt, before, after, wisDelta: wisDelta + bonus, showThing: false, fresh: true, line, unlocked: think ? [] : unlocked, forgiven, drip, flash, firstEver, rule: ruleView, think, revealed, tease });
+  go('close', { receipt, before, after, wisDelta: wisDelta + bonus, showThing: false, fresh: true, line, unlocked: think ? [] : unlocked, forgiven, drip, flash, firstEver, rule: ruleView, think, revealed, tease, splash });
 }
 
 // ---------- close and receipts ----------
@@ -1417,7 +1427,11 @@ function receiptHTML(r, showThing) {
 function closeLine(r, ctx) {
   if (r.outcome === 'bailed') return fresh('bail', BAIL_LINES).item;
   if (r.reality === 3) return 'Okay. That one was bad. If it’s actually serious, talk to somebody who can help.';
-  if (r.reality === 2) return 'That happens. Now you know something. Move on.';
+  if (r.reality === 2) {
+    if (ctx.think) return ROUGH_LINES.big;
+    if (r.dread === 3) return ROUGH_LINES.hard;
+    return fresh('rough', ROUGH_LINES.lines).item;
+  }
   // A one-way door handled the right way gets a straight line, not a joke. Not even the liar count.
   if (ctx.think) return 'A question, a date, a person who knows. That’s how a big one gets handled. The brain can clock out.';
   // Caught lying: the line climbs with the count, so lie number 5 doesn't read like lie number 1.
@@ -1463,7 +1477,8 @@ VIEWS.close = () => {
   const bailed = r.outcome === 'bailed';
   const stats = bailed ? 'NO PENALTY' : [intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join(' · ');
   const levelLines = bailed ? 'NO|PENALTY.' : [view.rule?.head || '', r.legendary ? 'LEGENDARY' : '', intDelta ? `−${intDelta} INT` : '', `+${wisDelta} WIS`].filter(Boolean).join('|');
-  const overlay = fresh ? `<div class="levelup ${bailed ? 'sad' : `f-${flash || 'sun'}`}" id="levelup" data-a="skip-level">${big(levelLines, { max: 190, slam: true, center: true })}</div>` : '';
+  // The full-screen splash: the day's first receipt, a rule result, a legendary one, or a bail. Not every round.
+  const overlay = fresh && view.splash ? `<div class="levelup ${bailed ? 'sad' : `f-${flash || 'sun'}`}" id="levelup" data-a="skip-level">${big(levelLines, { max: 190, slam: true, center: true })}</div>` : '';
   // The cliffhanger (brain court, or tomorrow's rule), picked in finishLoop: once a day, on the first receipt that has one.
   const court = view.tease?.court || null;
   const ruleNext = view.tease?.rule || null;
@@ -1554,6 +1569,11 @@ function dismissLevelUp() {
   clearTimeout(dismissLevelUp.t);
   el.classList.add('out');
   setTimeout(() => el.remove(), 260);
+  countDown(200);
+}
+
+// The brain shrinks and the number counts down to where it landed.
+function countDown(delay) {
   const { before, after } = view;
   setTimeout(() => {
     const svg = document.querySelector('#close-brain svg');
@@ -1568,7 +1588,7 @@ function dismissLevelUp() {
       if (p < 1) requestAnimationFrame(anim);
     };
     requestAnimationFrame(anim);
-  }, 200);
+  }, delay);
 }
 
 VIEWS.close.after = () => {
@@ -1594,7 +1614,9 @@ VIEWS.close.after = () => {
     setTimeout(() => sfx.jingle(r.id), r.legendary ? 1500 : 1100);
     if (view.drip || view.unlocked?.length) setTimeout(() => sfx.unlock(), 2100);
   }
-  dismissLevelUp.t = setTimeout(dismissLevelUp, 1500);
+  // No splash (a later round today): the brain and the number move right away.
+  if (document.getElementById('levelup')) dismissLevelUp.t = setTimeout(dismissLevelUp, 1500);
+  else countDown(350);
 };
 
 VIEWS.receipts = () => {
@@ -2154,7 +2176,7 @@ function suggestFor(L) {
   L.draftKind = C.detectDraftKind(L.thing);
   if (L.draftCasual === undefined) L.draftCasual = C.chatty(L.thing);
   // After MAKE IT STUPID SMALL, a smaller version, not the same step.
-  if (L.verdict === 'shrink') return MOVE_SUGGESTIONS[L.draftKind ? 'shrinkDraft' : 'shrink'];
+  if (L.verdict === 'shrink') return L.rule === 'minute' && !L.draftKind ? RULES.minute.moves.shrink : MOVE_SUGGESTIONS[L.draftKind ? 'shrinkDraft' : 'shrink'];
   const kind = L.draftKind === 'family' && /\bcall/.test(L.thing.toLowerCase()) ? 'call' : C.suggestKind(L.thing, L.draftKind);
   // ONE MINUTE: the same kind of step, cut to what fits in 60 seconds.
   if (L.rule === 'minute') return RULES.minute.moves[kind] || RULES.minute.moves.default;
@@ -2233,8 +2255,10 @@ const ACTIONS = {
   'pick-open': () => {
     const L = S.active;
     if (!L || L.picked) return undefined;
-    L.thing = fresh('dare', darePool()).item;
+    const yours = C.unfinished(S.receipts)[0];
+    L.thing = yours ? yours.thing : fresh('dare', darePool()).item;
     L.move = L.thing;
+    L.pickedYours = !!yours;
     L.picked = true;
     save();
     shake();
@@ -2248,6 +2272,7 @@ const ACTIONS = {
     const pool = darePool().filter((m) => m !== L.thing);
     L.thing = fresh('dare', pool.length ? pool : darePool()).item;
     L.move = L.thing;
+    L.pickedYours = false;
     L.rerolled = true;
     save();
     buzz(20);
@@ -2593,7 +2618,7 @@ const ACTIONS = {
     L.revealFresh = true;
     save();
     go('loop');
-    if (!dodgeNeeded(L)) finishTallySoon(L, C.revealFor(L.dread, L.reality)?.type === 'rough' ? 700 : 2200);
+    if (!dodgeNeeded(L)) finishTallySoon(L, C.revealFor(L.dread, L.reality)?.type === 'rough' ? 700 : 3000);
     return undefined;
   },
   'after-howlong': (d) => {
@@ -2767,7 +2792,7 @@ const ACTIONS = {
   // The sentence: the one they've dodged longest, through the door check, since big ones deserve it.
   'trial-sentence': () => {
     if (view.entry?.verdict === 'continued') return startLoop({ source: 'trial' });
-    return startLoop({ source: 'trial', full: true, title: TRIAL.bigOne.title, placeholder: TRIAL.bigOne.placeholder });
+    return startLoop({ source: 'trial', full: true, title: view.day > C.TRIAL_DAYS[0] ? TRIAL.bigOne.again : TRIAL.bigOne.title, placeholder: TRIAL.bigOne.placeholder });
   },
   'share-trial': () => {
     const e = view.entry;

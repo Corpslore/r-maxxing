@@ -373,6 +373,7 @@ const MOVE_PATTERNS = [
   ['email', /\b(?:e-?mail\w*|inbox)\b/],
   ['apply', /\b(?:apply|applying|application|resume|cv)\b/],
   ['form', /\b(?:appeal\w*|form|forms|dispute|ticket|paperwork|renew\w*)\b/],
+  ['pay', /\b(?:pay|paying|bill|bills|fee|fees|tuition)\b/],
   ['clean', /\b(?:clean\w*|laundry|dishes|tidy|declutter)\b/],
   ['call', /\b(?:call|calling|phone|ring)\b/],
   ['book', /\b(?:book|booking|appointment|appt|schedul\w*|dentist|doctor|haircut|reservation)\b/],
@@ -564,6 +565,25 @@ export function trialVerdict(c) {
   if (c.lies + c.calls > 0) return c.lies > c.calls ? 'guilty' : c.lies === c.calls ? 'split' : 'accurate';
   if (c.thoughtMin && c.doneSec) return 'stalling';
   return 'continued';
+}
+
+// Things they chickened out of in the last two weeks and never did since, newest first, one per thing.
+// What THE APP PICKS deals first. Never crisis wording or a one-way door: the envelope only says GO.
+export function unfinished(receipts, now = Date.now(), days = 14) {
+  const list = receipts || [];
+  const key = (t) => String(t || '').trim().toLowerCase();
+  const seen = new Set();
+  const out = [];
+  for (const r of list) {
+    if (r.outcome !== 'bailed' || !r.thing || now - r.at > days * 86400000) continue;
+    const k = key(r.thing);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    if (list.some((x) => x.at > r.at && x.outcome !== 'bailed' && key(x.thing) === k)) continue;
+    if (detectCrisis(r.thing) || detectCrisisCheck(r.thing) || detectOneWay(r.thing)) continue;
+    out.push(r);
+  }
+  return out.sort((a, b) => b.at - a.at);
 }
 
 // The check after DONE: the brain's guess against how it went, stamped the moment they answer.

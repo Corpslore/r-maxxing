@@ -122,6 +122,7 @@ export const MOVE_SUGGESTIONS = {
   write: 'Write one ugly sentence. Then another.',
   book: 'Open the booking page. Take the first open slot.',
   form: 'Open the form. Fill in the first box.',
+  pay: 'Open the payment page. Find the amount.',
   default: 'Do the first ugly 10 minutes.',
 };
 
@@ -997,7 +998,7 @@ export const TRIAL = {
   overturned: 'You chickened out. Then you did it anyway.',
   // {lies} {calls} {total} {think} {did} are filled in by the app.
   verdicts: {
-    guilty: { title: 'GUILTY.', sub: 'Your brain lied in {lies} of {total} cases. Everything it says is now hearsay.', tone: 'pink' },
+    guilty: { title: 'GUILTY.', sub: 'On record, your brain lied in {lies} of {total} cases. Everything it says is now hearsay.', tone: 'pink' },
     split: { title: 'HALF|GUILTY.', sub: 'Right {calls}, wrong {lies}. Your brain is a coin with anxiety.', tone: 'sun' },
     accurate: { title: 'NOT|GUILTY.', sub: 'It called {calls} of {total} cases. You did them anyway. Right, and it still lost.', tone: 'lime' },
     stalling: { title: 'GUILTY OF|STALLING.', sub: '{think} of thinking. {did} of doing. The court has seen enough.', tone: 'orange' },
@@ -1005,7 +1006,7 @@ export const TRIAL = {
   },
   // Appeals and later hearings: same rulings, new words, so day 7 isn't a rerun of day 3.
   again: {
-    guilty: { title: 'APPEAL|DENIED.', sub: 'Lied in {lies} of {total} cases. Still guilty. The brain would like to speak to a manager.', tone: 'pink' },
+    guilty: { title: 'APPEAL|DENIED.', sub: 'On record: lied in {lies} of {total} cases. Still guilty. The brain would like to speak to a manager.', tone: 'pink' },
     split: { title: 'HUNG|JURY.', sub: 'Right {calls}, wrong {lies}. Half liar, half weather app.', tone: 'sun' },
     accurate: { title: 'APPEAL|GRANTED.', sub: 'It called {calls} of {total} cases. The brain is getting honest, and you did them anyway.', tone: 'lime' },
   },
@@ -1020,7 +1021,7 @@ export const TRIAL = {
     later: 'Not today',
   },
   // The thing screen, when the sentence sends you there.
-  bigOne: { title: 'THE ONE|YOU’VE DODGED|LONGEST.', placeholder: 'the thing you keep not doing' },
+  bigOne: { title: 'THE ONE|YOU’VE DODGED|LONGEST.', again: 'THE ONE IT’S|LOUDEST|ABOUT.', placeholder: 'the thing you keep not doing' },
   share: { q: 'Is my brain a liar?', text: 'My brain went on trial. Verdict: {verdict}.' },
   // Home and the receipt, the day before a hearing.
   soonTitle: 'TOMORROW: {name}',
@@ -1064,8 +1065,8 @@ export const RULES = {
     next: 'ROUND 2 →',
     lines: {
       round: { title: 'ROUND 1: DONE.', sub: 'One more and it’s back to back. The brain is still catching up.' },
-      win: { title: 'BACK TO BACK.', sub: 'Two in a row. The brain didn’t get a word in. +1 WIS.' },
-      kinda: { title: 'BACK TO BACK. KINDA.', sub: 'Two in a row, one of them kinda. Kinda still counts. +1 WIS.' },
+      win: { title: 'BACK TO BACK.', sub: 'Two in a row. The brain didn’t get a word in. Bonus WIS for the pair.' },
+      kinda: { title: 'BACK TO BACK. KINDA.', sub: 'Two in a row, one of them kinda. Kinda still counts. Bonus WIS for the pair.' },
     },
   },
   minute: {
@@ -1084,6 +1085,8 @@ export const RULES = {
       call: 'Dial the number.',
       book: 'Open the booking page.',
       form: 'Open the form.',
+      pay: 'Open the payment page.',
+      shrink: 'Do the one-minute version you can take back.',
       write: 'Write the first sentence.',
       default: 'Do the first 60 seconds of it.',
     },
@@ -1104,6 +1107,7 @@ export const RULES = {
     fast: 'THE APP|PICKED:',
     sealed: 'TAP TO OPEN',
     picked: 'The app picked:',
+    pickedYours: 'You chickened out of this one. The app remembers:',
     deal: 'DEAL.',
     reroll: '↻ One re-roll',
     rerolled: 'Re-roll used. That’s the one.',
@@ -1175,3 +1179,16 @@ export const FAST_LINES = [
   'Faster than the brain can load. Suspicious. Respect.',
   'Under 10 seconds. Was it even a thing? Doesn’t matter. Done.',
 ];
+
+// It went badly. The school website not working and telling your dad about the truck don't get the same line.
+// hard: they called it a disaster and it was "only" bad. big: a one-way door they did anyway. lines: everything else, rotating.
+export const ROUGH_LINES = {
+  hard: 'You said disaster. It was bad. Bad is survivable, and it’s behind you now.',
+  big: 'That was a big one, and you did it. Bad isn’t the end of it. The hard part is done.',
+  lines: [
+    'That happens. Now you know something. Move on.',
+    'Didn’t go great. It’s done, though, and done was the hard part.',
+    'Rough one. It’s behind you now.',
+    'Not every one goes fine. This one’s still off your plate.',
+  ],
+};

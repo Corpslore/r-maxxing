@@ -736,6 +736,9 @@ a.btn { text-decoration: none; }
 /* What it was stays blurred on the home screen until tapped. */
 .fu-thing.peek { display: block; width: 100%; text-align: left; padding: 2px 0; background: none; border: 0; font: inherit; font-weight: 700; font-size: 14px; color: var(--mute); filter: blur(6px); cursor: pointer; }
 .fu-thing.peek.shown { filter: none; }
+/* Blurred so a glance over the shoulder can't read it. Says how to see it. */
+.fu-thing.peek:not(.shown) { filter: none; color: transparent; text-shadow: 0 0 9px var(--mute); }
+.fu-thing.peek:not(.shown)::before { content: 'TAP TO SEE'; margin-right: 8px; color: var(--mute); text-shadow: none; font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; }
 
 /* Brain court: the summons on home, the exhibits, the verdict. */
 .court-card { display: grid; gap: 4px; width: 100%; margin: 4px 0 12px; padding: 16px; border-radius: 16px; background: var(--sun); color: #0B0B0B; text-align: left; box-shadow: 0 6px 0 #7A6E00; }
