@@ -21,7 +21,7 @@ const KEY = 'rmaxxing.v1';
 const DEFAULTS = {
   w: null, startW: null, typeName: null, quizSeconds: null, wis: C.START_WIS,
   streak: 0, lastDay: null, lastSeen: null, installLater: null,
-  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false, teasedOn: null, splashOn: null,
+  wear: null, closetOrder: null, nudge: null, pro: false, skin: 'classic', who: 'brother', quiet: false, quietAsked: false, teasedOn: null, splashOn: null, dodgedOn: null,
   receipts: [], read: [], dailyDone: {}, active: null, trials: [],
 };
 
@@ -524,6 +524,7 @@ function followUpCard() {
       <strong>${esc(q)}</strong>
       <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}</button>
       <div class="fu-choices">${FOLLOW_UP.reply.choices.map(([v, label]) => `<button class="chip" data-a="fu-answer" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>
+      <button class="link" data-a="fu-answer" data-id="${r.id}" data-v="unsent">${FOLLOW_UP.unsent.label}</button>
     </div>`;
   }
   if (r.fu.type === 'plan') {
@@ -651,7 +652,8 @@ VIEWS.trial = () => {
           max: 120,
           back: false,
           top,
-          body: `${peek(r)}<div class="fu-choices">${FOLLOW_UP.reply.choices.map(([v, label]) => `<button class="chip" data-a="trial-witness" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>`,
+          body: `${peek(r)}<div class="fu-choices">${FOLLOW_UP.reply.choices.map(([v, label]) => `<button class="chip" data-a="trial-witness" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>
+            <button class="link" data-a="trial-witness" data-id="${r.id}" data-v="unsent">${FOLLOW_UP.unsent.label}</button>`,
         }),
       };
     }
@@ -1427,7 +1429,7 @@ function closeLine(r, ctx) {
   if (r.outcome === 'bailed') return fresh('bail', BAIL_LINES).item;
   if (r.reality === 3) return 'Okay. That one was bad. If it’s actually serious, talk to somebody who can help.';
   if (r.reality === 2) {
-    if (ctx.think) return ROUGH_LINES.big;
+    if (ctx.think) return r.outcome === 'some' ? ROUGH_LINES.bigKinda : ROUGH_LINES.big;
     if (r.dread === 3) return ROUGH_LINES.hard;
     return fresh('rough', ROUGH_LINES.lines).item;
   }
@@ -2198,9 +2200,10 @@ function startDraftClock(copied) {
 
 // How long it had been put off: asked only if we never asked, and never for the head-clearing walk.
 // Nor for something the app handed them (a dare, the daily mission, the envelope), or round 2 of BACK TO BACK.
+// And once a day at most: three testers in a row called it a form by the second round.
 function dodgeNeeded(L) {
   const handed = ['dare', 'daily'].includes(L.source) || L.rule === 'pick' || (L.rule === 'double' && L.round > 1);
-  return L.thoughtMin == null && !L.dodged && L.source !== 'check' && !handed;
+  return L.thoughtMin == null && !L.dodged && L.source !== 'check' && !handed && S.dodgedOn !== C.dateKey();
 }
 
 // After DONE: whatever the receipt still needs, on one screen at most. They called how bad it'd go:
@@ -2257,7 +2260,7 @@ const ACTIONS = {
     if (!L || L.picked) return undefined;
     const yours = C.unfinished(S.receipts)[0];
     L.thing = yours ? yours.thing : fresh('dare', darePool()).item;
-    L.move = L.thing;
+    L.move = yours ? suggestFor(L) : L.thing;
     L.pickedYours = !!yours;
     L.picked = true;
     save();
@@ -2318,7 +2321,7 @@ const ACTIONS = {
       save();
       return go('loop');
     }
-    if (view.name === 'lesson' || view.name === 'pack') return go('method');
+    if (view.name === 'lesson' || view.name === 'pack') return go(view.from || 'method');
     if (view.name === 'backup') return go('about');
     if (view.name === 'shop') return go(view.from && view.from !== 'shop' ? view.from : 'vault');
     return go('home');
@@ -2327,7 +2330,7 @@ const ACTIONS = {
     if (view.name === 'objection') return go(view.back || 'home');
     S.active = null;
     save();
-    return go(view.name === 'lesson' || view.name === 'pack' ? 'method' : 'home');
+    return go(view.name === 'lesson' || view.name === 'pack' ? view.from || 'method' : 'home');
   },
 
   'intro-tap': (d, el, e) => {
@@ -2627,6 +2630,7 @@ const ACTIONS = {
     const m = Number(d.m);
     L.thoughtMin = m >= 0 ? m : null;
     L.dodged = true;
+    S.dodgedOn = C.dateKey();
     // On the check, still waiting on how bad it was: mark the pick and wait.
     if ((L.step === 'tally' || L.step === 'reality') && L.reality == null) {
       save();
@@ -2660,7 +2664,7 @@ const ACTIONS = {
     if (!lessonOpen(d.id)) return undefined;
     if (!S.read.includes(d.id)) S.read.push(d.id);
     save();
-    go('lesson', { id: d.id });
+    go('lesson', { id: d.id, from: view.name === 'method' ? 'method' : 'home' });
   },
   'lesson-cta': (d) => {
     if (d.act === 'check') return ACTIONS.check();
@@ -2670,7 +2674,7 @@ const ACTIONS = {
     if (view.name === 'lesson' && view.id === 'when') return startLoop({ placeholder: 'when ___, i will ___' });
     return ACTIONS.start();
   },
-  pack: (d) => (packOpen(d.id) ? go('pack', { id: d.id }) : undefined),
+  pack: (d) => (packOpen(d.id) ? go('pack', { id: d.id, from: view.name === 'method' ? 'method' : 'home' }) : undefined),
   'pack-move': (d) => prefilled(d.v, 'playbook'),
   poke: (_, el) => {
     const svg = el.querySelector('svg.brain');
@@ -2717,12 +2721,13 @@ const ACTIONS = {
       render();
       return toast(FOLLOW_UP.wait);
     }
-    if (d.v === 'skip' || d.v === 'drop') {
+    if (d.v === 'skip' || d.v === 'drop' || d.v === 'unsent') {
       r.fu.state = 'skipped';
+      if (d.v === 'unsent') r.fu.result = 'unsent';
       save();
       refreshNudges();
       render();
-      return toast(d.v === 'drop' ? FOLLOW_UP.drop : FOLLOW_UP.skip);
+      return toast(d.v === 'unsent' ? FOLLOW_UP.unsent.toast : d.v === 'drop' ? FOLLOW_UP.drop : FOLLOW_UP.skip);
     }
     r.fu.state = 'done';
     r.fu.result = d.v;
@@ -2738,7 +2743,9 @@ const ACTIONS = {
     if (!r?.fu) return undefined;
     r.fu.state = 'done';
     r.fu.result = 'retry';
-    const L = newLoop({ thing: r.thing, source: 'retry', step: 'fast', verdict: 'send' });
+    const rr = ruleRound();
+    const byRule = ['speedrun', 'double', 'minute'].includes(rr.rule) ? { rule: rr.rule, round: rr.round, theme: rr.theme, ...(rr.dur ? { dur: rr.dur } : {}) } : {};
+    const L = newLoop({ thing: r.thing, source: 'retry', step: 'fast', verdict: 'send', ...byRule });
     L.move = suggestFor(L);
     if (r.kind) L.draftKind = r.kind;
     if (r.draft) {
@@ -2763,6 +2770,10 @@ const ACTIONS = {
         r.fu.asks = (r.fu.asks || 0) + 1;
         r.fu.snooze = C.dateKey();
         line = FOLLOW_UP.wait;
+      } else if (d.v === 'unsent') {
+        r.fu.state = 'skipped';
+        r.fu.result = 'unsent';
+        line = FOLLOW_UP.unsent.toast;
       } else {
         r.fu.state = 'done';
         r.fu.result = d.v;

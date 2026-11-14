@@ -123,7 +123,9 @@ export const MOVE_SUGGESTIONS = {
   book: 'Open the booking page. Take the first open slot.',
   form: 'Open the form. Fill in the first box.',
   pay: 'Open the payment page. Find the amount.',
-  default: 'Do the first ugly 10 minutes.',
+  default: 'Start the ugly version.',
+  interview: 'Write the question you’re scared of. Answer it out loud once.',
+  lookup: 'Open the page. Read for two minutes, then stop.',
 };
 
 // Draft it ugly: plain messages people can actually send. No jokes in here, these go to real people.
@@ -302,7 +304,7 @@ export const DRAFTS = [
 // Tap-to-fill first steps on the fast lane. Five are shown per round.
 export const MOVE_CHIPS = [
   'Write one ugly sentence.', 'Send one message.', 'Put my shoes on.', 'Open the thing.', 'Ask one question.',
-  'Set a 2-minute timer.', 'Stand up.', 'Make the first click.', 'Say it out loud once.', 'Do the worst part first.',
+  'Open it and just look.', 'Stand up.', 'Make the first click.', 'Say it out loud once.', 'Do the worst part first.',
   'Open a blank page.', 'Find the email address.', 'Put it on the calendar.', 'Clear one square foot.', 'Write the subject line.',
 ];
 
@@ -943,6 +945,8 @@ export const FOLLOW_UP = {
     ],
   },
   wait: 'Okay. We’ll ask again tomorrow.',
+  // For a message that never went out: no verdict, no evidence, off the list.
+  unsent: { label: 'I didn’t send anything', toast: 'Then there’s nothing to wait for. Off the list.' },
   skip: 'No penalty. It’ll still be there when you are.',
   drop: 'Deciding not to is a decision. No penalty.',
   // The reminder that goes out on the next day. Never the thing or a name: lock screens are public.
@@ -1016,7 +1020,7 @@ export const TRIAL = {
     base: 'The brain sits this one out. You pick the one you’ve been dodging longest.',
     accurate: 'The brain was right, and you did it anyway. Now do the one it’s loudest about.',
     continued: 'Do one today. Tap how bad it’ll go first, so the court has something to rule on.',
-    again: 'Same deal as last time. You pick the one it’s still loudest about.',
+    again: 'The brain keeps losing, so the sentence goes up: the one it’s loudest about. Not the easy one.',
     go: 'NAME THE BIG ONE',
     later: 'Not today',
   },
@@ -1083,6 +1087,8 @@ export const RULES = {
       apply: 'Open the application.',
       clean: 'Clear one spot.',
       call: 'Dial the number.',
+      interview: 'Write the question you’re scared of.',
+      lookup: 'Open the page.',
       book: 'Open the booking page.',
       form: 'Open the form.',
       pay: 'Open the payment page.',
@@ -1184,7 +1190,8 @@ export const FAST_LINES = [
 // hard: they called it a disaster and it was "only" bad. big: a one-way door they did anyway. lines: everything else, rotating.
 export const ROUGH_LINES = {
   hard: 'You said disaster. It was bad. Bad is survivable, and it’s behind you now.',
-  big: 'That was a big one, and you did it. Bad isn’t the end of it. The hard part is done.',
+  big: 'That was a big one, and you moved on it. Bad isn’t the end of it.',
+  bigKinda: 'Kinda counts. It’s written down now. The date you picked is the next step, not the brain.',
   lines: [
     'That happens. Now you know something. Move on.',
     'Didn’t go great. It’s done, though, and done was the hard part.',

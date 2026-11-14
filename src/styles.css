@@ -749,7 +749,7 @@ a.btn { text-decoration: none; }
 .teaser.court { box-shadow: inset 0 0 0 3px var(--sun); }
 .teaser.court b { color: var(--sun); }
 .exhibits { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
-.exhibit { position: relative; padding: 12px 14px; border-radius: 14px; background: var(--raised); box-shadow: inset 0 0 0 3px var(--line); }
+.exhibit { position: relative; min-width: 0; padding: 12px 14px; border-radius: 14px; background: var(--raised); box-shadow: inset 0 0 0 3px var(--line); }
 .ex-head { min-height: 26px; margin: 0 0 2px; padding-right: 132px; font-family: "DM Mono", ui-monospace, monospace; font-size: 12.5px; letter-spacing: .06em; color: var(--mute); }
 .ex-head b { font-weight: 500; color: var(--fg); }
 .ex-row { display: flex; justify-content: space-between; gap: 10px; margin: 4px 0 0; font-weight: 700; font-size: 14px; color: var(--mute); }

@@ -349,8 +349,12 @@ const DRAFT_PATTERNS = [
   ['plans', /\b(?:hang(?:ing)? out|hangout|catch(?:ing)? up|make plans|invit\w*|what are you doing|grab (?:food|a drink|coffee|lunch|dinner)|get together)\b/],
 ];
 
+// Doing homework on someone isn't messaging them: "look up the recruiter", "prep for the interview".
+const NOT_A_MESSAGE = /^(?:look(?:ing)? (?:up|into|over)|research\w*|read(?:ing)?|google|stalk\w*|study\w*|prep\w*|practic\w*|watch\w*|find out)\b/;
+
 export function detectDraftKind(text) {
   const t = norm(text);
+  if (NOT_A_MESSAGE.test(t)) return null;
   for (const [kind, re] of DRAFT_PATTERNS) if (re.test(t)) return kind;
   return null;
 }
@@ -369,12 +373,14 @@ export function fillDraft(template, name, hints = {}) {
 }
 
 const MOVE_PATTERNS = [
+  ['lookup', /^(?:look(?:ing)? (?:up|into|over)|research\w*|google|stalk\w*|find out)\b/],
   ['gym', /\b(?:gym|work ?out|workout|run|running|lift\w*|exercise|walk)\b/],
   ['email', /\b(?:e-?mail\w*|inbox)\b/],
   ['apply', /\b(?:apply|applying|application|resume|cv)\b/],
   ['form', /\b(?:appeal\w*|form|forms|dispute|ticket|paperwork|renew\w*)\b/],
   ['pay', /\b(?:pay|paying|bill|bills|fee|fees|tuition)\b/],
   ['clean', /\b(?:clean\w*|laundry|dishes|tidy|declutter)\b/],
+  ['interview', /\b(?:interview\w*|phone screen)\b/],
   ['call', /\b(?:call|calling|phone|ring)\b/],
   ['book', /\b(?:book|booking|appointment|appt|schedul\w*|dentist|doctor|haircut|reservation)\b/],
   ['write', /\b(?:write|writing|essay|paper|post|video|edit\w*|draft)\b/],
@@ -513,6 +519,7 @@ export function exhibitFor(r) {
   if (!r || detectCrisis(r.thing || '') || detectCrisisCheck(r.thing || '')) return null;
   const base = { id: r.id, at: r.at };
   if (r.outcome === 'bailed') return { ...base, type: r.fu?.result === 'did' ? 'overturned' : 'bail' };
+  if (r.fu?.result === 'unsent') return null;
   const ans = ANSWER_LEVEL[r.fu?.result];
   const was = ans ?? r.reality;
   if (was === 3) return null;
