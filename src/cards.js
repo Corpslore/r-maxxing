@@ -331,7 +331,7 @@ export function renderReceiptCard(r, showThing, skin = null) {
   if (r.drawSec != null) rows.push(['DREW IN', `${r.drawSec.toFixed(1)} SEC`]);
   rows.push(['THOUGHTS', bailed ? 'MANY' : '0']);
   const x = bailed ? null : ratio(r.thoughtMin, r.doneSec);
-  const big = bailed ? 'CHICKENED OUT' : x ? fmtRatio(x) : 'DONE';
+  const big = bailed ? 'CHICKENED OUT' : x ? fmtRatio(x) : kinda ? 'KINDA' : 'DONE';
   const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? (kinda ? 'THINKING TO KINDA DOING' : 'THINKING TO DOING') : kinda ? 'KINDA COUNTS' : 'THAT’S THE WHOLE THING';
   return receiptFrame(`RECEIPT #${r.n ?? r.day}   ${stamp(r.at)}`, rows, big, label, { gold: !!r.legendary, skin, closer: r.closer || CLOSER, head: r.stamp || '' });
 }

@@ -566,14 +566,14 @@ function followUpCard() {
 
 // The date for a big one: three quick picks, or the day itself. Once it's on file, just the date.
 // bare: inside a card that already has its own title.
-function dateChooser(r, bare = false) {
+function dateChooser(r, bare = false, head = null) {
   const D = FOLLOW_UP.date;
   if (r.fu.state === 'dated' && !r.fu.picking) {
     return `<div class="date-card done"><b>${fill(D.saved, { date: dueText(r.fu.due) })}</b><span>${D.savedSub}</span></div>`;
   }
   const today = C.dateKey();
   return `<div class="date-card ${bare ? 'bare' : ''}">
-    ${bare ? '' : `<b>${D.title}</b><span>${D.sub}</span>`}
+    ${bare ? '' : `<b>${head?.title || D.title}</b><span>${head?.sub || D.sub}</span>`}
     <div class="chips">${D.chips.map(([n, label]) => `<button class="chip" data-a="fu-date" data-id="${r.id}" data-n="${n}">${label}</button>`).join('')}</div>
     <label class="date-pick"><span>${D.pick}</span><input type="date" class="field" data-c="fu-date" data-id="${r.id}" min="${C.addDays(today, 1)}" max="${C.addDays(today, 365)}"></label>
   </div>`;
@@ -592,7 +592,7 @@ function dateCard() {
     : `<p class="fu-sub">${D.sub}</p><div class="fu-choices">${D.choices.map(([v, label]) => `<button class="chip" data-a="fu-dated" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>`;
   return `<div class="fu-card date-due">
     <p class="eyebrow">${eyebrow}</p>
-    <strong>${r.fu.picking ? FOLLOW_UP.date.title : D.title}</strong>
+    <strong>${r.fu.picking ? (r.fu.wait ? FOLLOW_UP.date.waitTitle : FOLLOW_UP.date.title) : D.title}</strong>
     ${peek(r)}
     ${body}
   </div>`;
@@ -637,7 +637,7 @@ VIEWS.verdict = () => {
       back: false,
       top: '<div style="flex:1"></div>',
       sub: esc(sub),
-      body: '<p class="pill">+1 WIS</p>',
+      body: `<p class="pill">+1 WIS</p>${r.fu.type === 'plan' && res === 'talked' && ['done', 'dated'].includes(r.fu.state) ? dateChooser(r, false, { title: FOLLOW_UP.date.next, sub: FOLLOW_UP.date.nextSub }) : ''}`,
       slam: true,
       foot: `<button class="btn mega" data-a="share-verdict">SHARE THIS</button>
         <button class="btn ghost" data-a="tab" data-to="home">MOVE ON</button>`,
@@ -691,6 +691,8 @@ function trialWitness() {
 }
 
 const peek = (r) => (r ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}</button>` : '');
+// In a list, a big one shows as THE BIG ONE, never its words. Its receipt has the show toggle.
+const listThing = (r) => (r.fu?.type === 'plan' ? `<span class="hush">${FOLLOW_UP.dated.title.replace(/\.$/, '')} · HIDDEN</span>` : esc(r.thing));
 
 function exhibitHTML(e, i) {
   const r = S.receipts.find((x) => x.id === e.id);
@@ -1389,10 +1391,12 @@ function startTick() {
   const tickFrom = S.active.rule === 'minute' ? 10 : 5;
   // BLINDFOLD: no clock, no countdown, no horn. They find out at the end.
   const blind = S.active.rule === 'blind' && S.active.verdict !== 'think';
+  const hp = S.active.rule === 'boss' ? document.querySelector('.boss-hp i') : null;
   const tick = () => {
     if (!S.active) return;
     const left = remaining(S.active);
     const gone = elapsedNow(S.active);
+    if (hp && S.active.dur) hp.style.width = `${Math.max(0, Math.min(100, (100 * left) / S.active.dur))}%`;
     if (clock && !blind) clock.textContent = S.active.rule === 'speedrun' ? C.fmtClock(Math.floor(gone)) : C.fmtClock(left);
     if (ghost && record != null && gone > record && !ghost.classList.contains('past')) {
       ghost.classList.add('past');
@@ -1552,7 +1556,7 @@ function receiptHTML(r, showThing) {
   if (r.drawSec != null) rows.push(['Drew in', `${r.drawSec.toFixed(1)} sec`]);
   rows.push(['Thoughts', bailed ? 'Many' : '0']);
   const x = bailed ? null : C.ratio(r.thoughtMin, r.doneSec);
-  const bigText = bailed ? 'CHICKENED OUT' : x ? C.fmtRatio(x) : 'DONE';
+  const bigText = bailed ? 'CHICKENED OUT' : x ? C.fmtRatio(x) : kinda ? 'KINDA' : 'DONE';
   const label = bailed ? 'NO PENALTY. NOTHING HAPPENED.' : x ? (kinda ? 'THINKING TO KINDA DOING' : 'THINKING TO DOING') : kinda ? 'KINDA COUNTS' : 'THAT’S THE WHOLE THING';
   return `<div class="receipt-wrap"><div class="receipt ${r.legendary ? 'gold' : `skin-${skinOf().id}`}">
     <p class="r-title">${wordmark()}</p>
@@ -1577,7 +1581,11 @@ function closeLine(r, ctx) {
     return fresh('rough', ROUGH_LINES.lines).item;
   }
   // A one-way door handled the right way gets a straight line, not a joke. Not even the liar count.
-  if (ctx.think) return 'A question, a date, a person who knows. That’s how a big one gets handled. The brain can clock out.';
+  if (ctx.think) {
+    return r.outcome === 'some'
+      ? 'Kinda counts. Part of it is on paper now. Put a date on the rest.'
+      : 'A question, a date, a person who knows. That’s how a big one gets handled. The brain can clock out.';
+  }
   // Caught lying: the line climbs with the count, so lie number 5 doesn't read like lie number 1.
   // Skipped when the check already stamped it.
   if (!ctx.revealed && r.dread != null && r.reality < r.dread) {
@@ -1585,6 +1593,7 @@ function closeLine(r, ctx) {
     return fill(LIAR_LINES[C.liarIndex(n, LIAR_LINES.length)], { said: DREAD[r.dread], was: DREAD[r.reality], n });
   }
   if (ctx.capped) return `That’s ${ctx.capped} today. The brain only smooths ${C.DAILY_CREDIT} a day. It’s a brain, not a microwave.`;
+  if (r.outcome === 'some') return fresh('ctx:kinda', CONTEXT_LINES.kinda.lines).item;
   if (r.doneSec != null && r.doneSec < 10) return fresh('fast', FAST_LINES).item;
   if (Math.random() < C.LEGENDARY_ODDS) {
     // Unfound rare lines come first, so the collection fills before anything repeats.
@@ -1796,7 +1805,7 @@ VIEWS.receipts = () => {
       ${wk.moved.length || wk.bailed ? `<button class="btn ghost week-link" data-a="week">${WEEK.link} →</button>` : ''}
       <p class="eyebrow section-label">History</p>
       <ul class="log">${S.receipts.map((r) => `<li><button class="log-item" data-a="open-receipt" data-id="${r.id}">
-        <strong>${r.legendary ? '<span class="star" aria-label="Legendary">★</span> ' : ''}${esc(r.thing)}</strong>
+        <strong>${r.legendary ? '<span class="star" aria-label="Legendary">★</span> ' : ''}${listThing(r)}</strong>
         <span>${new Date(r.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
         <em>${r.outcome === 'bailed' ? 'chickened out' : `${r.outcome === 'some' ? 'kinda · ' : ''}${C.fmtDid(r.doneSec)}`}</em>
       </button></li>`).join('')}</ul>`),
@@ -1816,7 +1825,7 @@ VIEWS.week = () => {
   else if (done > 2) line = fill(L.done, { things: things(done) });
   else if (done || w.bailed) line = fill(L.quiet, { things: things(done) });
   const item = (r) => `<li><button class="log-item" data-a="open-receipt" data-id="${r.id}">
-      <strong>${esc(r.thing)}</strong>
+      <strong>${listThing(r)}</strong>
       <span>${new Date(r.at).toLocaleDateString('en-US', { weekday: 'long' })}</span>
       <em>${r.outcome === 'some' ? 'kinda' : C.fmtDid(r.doneSec)}</em>
     </button></li>`;
@@ -2994,7 +3003,8 @@ const ACTIONS = {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key <= today) return toast(FOLLOW_UP.date.early);
     const asked = r.fu.state === 'open' && view.name !== 'close';
     const moved = r.fu.state === 'dated';
-    Object.assign(r.fu, { state: 'dated', due: key, picking: false, snooze: null });
+    const waited = !!r.fu.wait;
+    Object.assign(r.fu, { state: 'dated', due: key, picking: false, snooze: null, wait: false });
     buzz(20);
     if (asked) {
       r.fu.result = 'date';
@@ -3007,14 +3017,15 @@ const ACTIONS = {
     save();
     refreshNudges();
     render();
-    return toast(moved ? FOLLOW_UP.date.moved : FOLLOW_UP.date.toast);
+    return toast(waited ? FOLLOW_UP.date.waited : moved ? FOLLOW_UP.date.moved : FOLLOW_UP.date.toast);
   },
   // The big one, on its day. No push either way; a new date just goes back on file.
   'fu-dated': (d) => {
     const r = S.receipts.find((x) => x.id === d.id);
     if (!r?.fu) return undefined;
-    if (d.v === 'moved') {
+    if (d.v === 'moved' || d.v === 'waiting') {
       r.fu.picking = true;
+      r.fu.wait = d.v === 'waiting';
       save();
       return render();
     }

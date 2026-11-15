@@ -357,7 +357,8 @@ const DRAFT_PATTERNS = [
 ];
 
 // Doing homework on someone isn't messaging them: "look up the recruiter", "prep for the interview".
-const NOT_A_MESSAGE = /^(?:look(?:ing)? (?:up|into|over)|research\w*|read(?:ing)?|google|stalk\w*|study\w*|prep\w*|practic\w*|watch\w*|find out)\b/;
+// Writing something down for yourself isn't either: "write down my raise points" (tester 8, 2026-11-15).
+const NOT_A_MESSAGE = /^(?:look(?:ing)? (?:up|into|over)|research\w*|read(?:ing)?|google|stalk\w*|study\w*|prep\w*|practic\w*|watch\w*|find out|writ(?:e|ing) (?:down|out)|jot\w*|list\w*|make (?:a )?list|brainstorm\w*|outline\w*|figure out|think (?:about|through)|plan (?:out|what))\b/;
 
 export function detectDraftKind(text) {
   const t = norm(text);
@@ -534,7 +535,7 @@ export function exhibitFor(r) {
     const type = was < r.dread ? 'lie' : was > r.dread ? 'worse' : 'called';
     return { ...base, type, said: r.dread, was, answered: ans != null };
   }
-  if (r.thoughtMin && r.doneSec) return { ...base, type: 'stall', thoughtMin: r.thoughtMin, doneSec: r.doneSec };
+  if (r.outcome === 'did' && r.thoughtMin && r.doneSec) return { ...base, type: 'stall', thoughtMin: r.thoughtMin, doneSec: r.doneSec };
   return null;
 }
 
@@ -718,6 +719,7 @@ export function ruleResult(r, before, { think = false } = {}) {
         ? { kind: 'win', head: 'QUICKDRAW', stamp: 'QUICKDRAW' }
         : { kind: 'slow', head: null, stamp: 'QUICKDRAW' };
     case 'blind': {
+      if (!did) return { kind: 'kinda', head: null, stamp: 'BLINDFOLD' };
       const v = timeVerdict(r.timeSaid, r.doneSec);
       if (!v) return { kind: 'none', head: null, stamp: 'BLINDFOLD' };
       return { kind: v, head: v === 'lie' ? 'TIME LIE' : v === 'called' ? 'CALLED THE CLOCK' : null, stamp: 'BLINDFOLD' };

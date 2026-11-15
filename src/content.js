@@ -123,7 +123,7 @@ export const MOVE_SUGGESTIONS = {
   book: 'Open the booking page. Take the first open slot.',
   form: 'Open the form. Fill in the first box.',
   pay: 'Open the payment page. Find the amount.',
-  default: 'Start the ugly version.',
+  default: 'Do the first two minutes. That’s the whole ask.',
   interview: 'Write the question you’re scared of. Answer it out loud once.',
   lookup: 'Open the page. Read for two minutes, then stop.',
 };
@@ -424,6 +424,8 @@ export const CONTEXT_LINES = {
   monday: { lines: ['Did a thing on a Monday. Monday hates that.', 'Monday, handled. The rest of the week is scared now.'] },
   friday: { lines: ['Friday, and you still did it. Unhinged. Respect.', 'Did a thing on a Friday. The weekend is earned.'] },
   weekend: { lines: ['Did a thing on the weekend. Nobody even made you.', 'Weekend thing, done. Back to lying down.'] },
+  // Kinda isn't done, so it never gets a "done" or "handled" line (tester 8, 2026-11-15).
+  kinda: { always: true, lines: ['Kinda counts. The brain voted for zero.', 'Part of it moved. That’s more than the brain signed off on.', 'Kinda is a real number. Zero isn’t.'] },
   dare: { always: true, lines: ['The wheel said do it. You did it. Respect the wheel.', 'Dare accepted. Dare completed. The wheel is pleased.', 'You let a wheel run your life for five minutes. It worked.'] },
 };
 
@@ -964,6 +966,12 @@ export const FOLLOW_UP = {
     toast: 'On file. We’ll ask that day.',
     moved: 'New date. On file.',
     early: 'Pick a day after today.',
+    // WAITING TO HEAR BACK: they did their part; the answer is somebody else's. Ask again when it's due.
+    waitTitle: 'WHEN DO YOU HEAR BACK?',
+    waited: 'Ball’s in their court. We’ll ask that day.',
+    // After TALKED TO SOMEBODY: the big one stays on file if it still needs deciding.
+    next: 'STILL DECIDING?',
+    nextSub: 'Put the next date on it. Or don’t, if it’s settled.',
   },
   // On the day itself (or the first open after it, for a week).
   dated: {
@@ -971,7 +979,7 @@ export const FOLLOW_UP = {
     late: 'YOU PICKED {day}',
     title: 'THE BIG ONE.',
     sub: 'No push from us. Where’s it at?',
-    choices: [['decided', 'DECIDED'], ['talked', 'TALKED TO SOMEBODY'], ['moved', 'NEEDS A NEW DATE'], ['drop', 'LETTING IT GO']],
+    choices: [['decided', 'DECIDED'], ['talked', 'TALKED TO SOMEBODY'], ['waiting', 'WAITING TO HEAR BACK'], ['moved', 'NEEDS A NEW DATE'], ['drop', 'LETTING IT GO']],
   },
   wait: 'Okay. We’ll ask again tomorrow.',
   // For a message that never went out: no verdict, no evidence, off the list.
@@ -1199,6 +1207,7 @@ export const RULES = {
       called: { title: 'CALLED THE CLOCK.', sub: 'It said {said}. It took {time}. One point for the brain.' },
       worse: { title: 'TOOK LONGER.', sub: 'It said {said}. It took {time}. Done anyway, and done was the job.' },
       none: { title: 'IT TOOK {time}.', sub: 'No guess on file, so nothing to check. Next time, call it first.' },
+      kinda: { title: 'KINDA. CLOCK STAYS SEALED.', sub: 'It said {said}. The clock only gets checked on done, and this one isn’t yet.' },
     },
   },
   sequel: {

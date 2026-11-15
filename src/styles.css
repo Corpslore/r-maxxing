@@ -755,6 +755,7 @@ a.btn { text-decoration: none; }
 /* What it was stays blurred on the home screen until tapped. */
 .fu-thing.peek { display: block; width: 100%; text-align: left; padding: 2px 0; background: none; border: 0; font: inherit; font-weight: 700; font-size: 14px; color: var(--mute); filter: blur(6px); cursor: pointer; }
 .fu-thing.peek.shown { filter: none; }
+.hush { font-family: "DM Mono", ui-monospace, monospace; font-size: 13px; letter-spacing: .08em; color: var(--mute); }
 /* Blurred so a glance over the shoulder can't read it. Says how to see it. */
 .fu-thing.peek:not(.shown) { filter: none; color: transparent; text-shadow: 0 0 9px var(--mute); }
 .fu-thing.peek:not(.shown)::before { content: 'TAP TO SEE'; margin-right: 8px; color: var(--mute); text-shadow: none; font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; }
