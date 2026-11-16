@@ -5,7 +5,7 @@ import {
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
-  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES, ROUGH_LINES, TIME_GUESSES, WEEK,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES, ROUGH_LINES, TIME_GUESSES, WEEK, THREADS,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
@@ -204,7 +204,7 @@ function ruleTag(L) {
   const R = L?.rule && RULES[L.rule];
   if (!R || !playsRule(L)) return '';
   const rec = recordText();
-  let text = fill(R.tag, { round: L.round || 1 });
+  let text = fill(R.tag, { round: L.round || 1, part: L.part || 2 });
   if (L.rule === 'speedrun') text = rec ? fill(R.tag, { record: rec }) : R.tagFirst;
   if (L.rule === 'boss' && L.thoughtMin) text = fill(R.tagHp, { dodged: C.fmtDuration(L.thoughtMin).toUpperCase() });
   if (L.rule === 'sequel' && L.part === 1) text = R.tagOne;
@@ -452,7 +452,7 @@ VIEWS.home = () => {
           <button class="mini" data-a="about" aria-label="About">?</button>
         </span>
       </header>
-      ${courtCard() || dateCard() || followUpCard() || weekCard()}
+      ${homeCards()}
       <section class="hero">
         <button class="hero-brain" data-a="poke" aria-label="Poke the brain">${brainSVG(w, 'wobble')}${stickerSVG('NOT A THOUGHT ★ HEAD EMPTY ★ ')}<span class="bubble" aria-live="polite"></span></button>
         <h1 class="score">${w}% <small>WRINKLED${S.streak > 1 ? ` · ${S.streak}-DAY STREAK` : ''}</small></h1>
@@ -571,11 +571,10 @@ function dateChooser(r, bare = false, head = null) {
   if (r.fu.state === 'dated' && !r.fu.picking) {
     return `<div class="date-card done"><b>${fill(D.saved, { date: dueText(r.fu.due) })}</b><span>${D.savedSub}</span></div>`;
   }
-  const today = C.dateKey();
   return `<div class="date-card ${bare ? 'bare' : ''}">
     ${bare ? '' : `<b>${head?.title || D.title}</b><span>${head?.sub || D.sub}</span>`}
-    <div class="chips">${D.chips.map(([n, label]) => `<button class="chip" data-a="fu-date" data-id="${r.id}" data-n="${n}">${label}</button>`).join('')}</div>
-    <label class="date-pick"><span>${D.pick}</span><input type="date" class="field" data-c="fu-date" data-id="${r.id}" min="${C.addDays(today, 1)}" max="${C.addDays(today, 365)}"></label>
+    ${dueLine(bigDue(r))}
+    ${dateChipsHTML({ action: 'fu-date', id: r.id, chips: D.chips, due: bigDue(r) })}
   </div>`;
 }
 
@@ -594,6 +593,7 @@ function dateCard() {
     <p class="eyebrow">${eyebrow}</p>
     <strong>${r.fu.picking ? (r.fu.wait ? FOLLOW_UP.date.waitTitle : FOLLOW_UP.date.title) : D.title}</strong>
     ${peek(r)}
+    ${r.fu.picking ? '' : dueLine(bigDue(r))}
     ${body}
   </div>`;
 }
@@ -609,6 +609,39 @@ function weekCard() {
     <span class="fu-sub">${fill(W.sub, { done: w.did + w.kinda, bailed: w.bailed })}</span>
     <span class="court-go">${W.go} →</span>
   </button>`;
+}
+
+// The cards at the top of home: one thing that's due (court, the big one's day, yesterday's follow-up),
+// plus a thread whose next bit is today. The week look waits for a day with neither.
+function homeCards() {
+  const top = courtCard() || dateCard() || followUpCard();
+  const th = threadCard();
+  return top + th || weekCard();
+}
+
+// A thread's day: the next bit they picked, or a deadline coming up. GO starts the next bit; the words are theirs.
+function threadCard() {
+  const today = C.dateKey();
+  const th = C.threadDue(S.receipts, today);
+  if (!th) return '';
+  const T = THREADS.card;
+  const r = th.r;
+  const eyebrow = th.why === 'due' ? T.due : th.picked === today ? T.today : fill(T.late, { day: dueText(th.picked) });
+  const title = th.why === 'due' ? T.dueTitle[Math.min(th.left, 1)] : fill(T.title, { n: th.parts + 1 });
+  const last = th.last.part >= 2 && th.last.move ? fill(T.last, { move: th.last.move }) : '';
+  const meta = fill(T.meta, { ago: C.agoWord(r.at, today).toLowerCase(), parts: th.parts === 1 ? T.one : fill(T.many, { n: th.parts }) });
+  const body = r.thread.picking
+    ? `${dateChipsHTML({ action: 'next-date', id: r.id, chips: THREADS.chips, due: th.due })}<button class="link" data-a="thread-snooze" data-id="${r.id}">${T.snooze}</button>`
+    : `<div class="pair"><button class="btn" data-a="thread-go" data-id="${r.id}">${T.go}</button><button class="btn ghost" data-a="thread-later" data-id="${r.id}">${T.later}</button></div>
+      <div class="thread-links"><button class="link" data-a="thread-close" data-id="${r.id}">${T.done}</button><button class="link" data-a="thread-drop" data-id="${r.id}">${T.drop}</button></div>`;
+  return `<div class="fu-card thread-card">
+    <p class="eyebrow">${eyebrow}</p>
+    <strong>${r.thread.picking ? T.laterTitle : title}</strong>
+    <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}${last ? ` · ${esc(last)}` : ''}</button>
+    <p class="fu-sub">${esc(meta)}</p>
+    ${dueLine(th.due)}
+    ${body}
+  </div>`;
 }
 
 // The answer, big, and shareable without the name in it.
@@ -691,8 +724,30 @@ function trialWitness() {
 }
 
 const peek = (r) => (r ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}</button>` : '');
+// "DUE TUE, DEC 1 · 5 DAYS LEFT": a deadline from their own words.
+const leftText = (n) => fill(THREADS.left[Math.min(n, 2)], { n });
+const dueLine = (due) => (due ? `<p class="due-line">${fill(THREADS.due, { date: dueText(due), left: leftText(C.dayDiff(C.dateKey(), due)) })}</p>` : '');
+const bigDue = (r) => {
+  const due = C.whenFromText(r.thing).due;
+  return due && due >= C.dateKey() ? due : null;
+};
+// Date picks: quick chips (none past a deadline, plus the day before it), a day they named themselves, or any day.
+function dateChipsHTML({ action, id, chips, due = null, said = null }) {
+  const today = C.dateKey();
+  const list = C.chipsBefore(chips, today, due).map((c) => ({ n: c.n, label: c.dayBefore ? THREADS.dayBefore : c.label }));
+  const saidN = said ? C.dayDiff(today, said) : 0;
+  if (saidN > 0 && (!due || said <= due)) {
+    const i = list.findIndex((c) => c.n === saidN);
+    if (i >= 0) list.splice(i, 1);
+    list.unshift({ n: saidN, label: fill(THREADS.said, { date: dueText(said) }) });
+  }
+  return `<div class="chips">${list.map((c) => `<button class="chip" data-a="${action}" data-id="${id}" data-n="${c.n}">${c.label}</button>`).join('')}</div>
+    <label class="date-pick"><span>${THREADS.pick}</span><input type="date" class="field" data-c="${action}" data-id="${id}" min="${C.addDays(today, 1)}" max="${due || C.addDays(today, 365)}"></label>`;
+}
+// "PART 3 · NEXT SAT, NOV 21 · DUE DEC 1"
+const threadMeta = (th) => [th.parts === 1 ? THREADS.meta.one : fill(THREADS.meta.parts, { n: th.parts }), th.next ? fill(THREADS.meta.next, { date: dueText(th.next) }) : '', th.due ? fill(THREADS.meta.due, { date: dueText(th.due) }) : ''].filter(Boolean).join(' · ');
 // In a list, a big one shows as THE BIG ONE, never its words. Its receipt has the show toggle.
-const listThing = (r) => (r.fu?.type === 'plan' ? `<span class="hush">${FOLLOW_UP.dated.title.replace(/\.$/, '')} · HIDDEN</span>` : esc(r.thing));
+const listThing = (r) => (C.isBigOne(S.receipts, r) ? `<span class="hush">${FOLLOW_UP.dated.title.replace(/\.$/, '')} · HIDDEN</span>` : esc(r.thing));
 
 function exhibitHTML(e, i) {
   const r = S.receipts.find((x) => x.id === e.id);
@@ -1021,7 +1076,7 @@ const STEPS = {
       title: L.title || 'WHAT ARE WE|OVERTHINKING?',
       eyebrow: ruleTag(L),
       progress: PROGRESS.thing,
-      body: `<textarea id="thing" class="field" rows="2" maxlength="140" placeholder="${esc(L.placeholder || (L.placeholder = fresh('placeholder', THING_PLACEHOLDERS).item))}" aria-label="What you’re overthinking" autofocus>${esc(L.thing)}</textarea>`,
+      body: `<textarea id="thing" class="field" rows="2" maxlength="140" placeholder="${esc(L.placeholder || (L.placeholder = fresh('placeholder', THING_PLACEHOLDERS).item))}" aria-label="What you’re overthinking" autofocus>${esc(L.thing)}</textarea>${pickupHTML(L)}`,
       foot: `<button class="btn" id="next" data-a="thing-next" ${L.thing.trim() ? '' : 'disabled'}>NEXT</button>
         ${L.full ? '' : '<button class="link" data-a="to-door">Not sure you should? Check the door first</button>'}`,
       inlineFoot: true,
@@ -1106,13 +1161,13 @@ const STEPS = {
     return {
       tone: L.theme || '',
       html: step({
-        title: think ? 'THE FIRST|10 MINUTES:' : (L.part === 2 && RULES.sequel.fastPart2) || RULES[L.rule]?.fast || 'FIRST|TINY STEP:',
+        title: think ? 'THE FIRST|10 MINUTES:' : (L.part >= 2 && fill(THREADS.fast, { n: L.part })) || RULES[L.rule]?.fast || 'FIRST|TINY STEP:',
         eyebrow: ruleTag(L),
         max: 96,
-        sub: (L.source === 'free' || L.source === 'retry') && L.thing !== L.move ? esc(L.thing) : '',
+        sub: ['free', 'retry', 'thread'].includes(L.source) && L.thing !== L.move ? esc(L.thing) : '',
         progress: PROGRESS.fast,
         pin: true,
-        body: `${draw}<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step"${L.part === 2 ? ` placeholder="${esc(RULES.sequel.placeholder)}"` : ''}>${esc(L.move)}</textarea>${draftCard}${dread}${chips}`,
+        body: `${draw}<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step"${L.part >= 2 ? ` placeholder="${esc(RULES.sequel.placeholder)}"` : ''}>${esc(L.move)}</textarea>${draftCard}${dread}${chips}`,
         foot: `<button class="btn mega" id="next" data-a="fast-go" ${L.move.trim() ? '' : 'disabled'}>GO</button>`,
       }),
     };
@@ -1446,6 +1501,7 @@ function finishLoop() {
   S.streak = C.nextStreak(S.lastDay, S.streak, today);
   S.lastDay = today;
   if (L.source === 'daily' && L.outcome !== 'bailed') S.dailyDone[today] = true;
+  const bigOf = !!L.of && C.isBigOne(S.receipts, { of: L.of });
   const receipt = {
     id: Date.now().toString(36),
     thing: L.thing,
@@ -1461,7 +1517,7 @@ function finishLoop() {
     streak: S.streak,
     kind: L.draftKind || null,
     to: L.draftKind ? (L.draftName ?? C.draftHints(L.thing).name) || '' : '',
-    fu: C.followUpFor(L),
+    fu: bigOf ? null : C.followUpFor(L),
     draft: L.draft || null,
     closer: fresh('closer', CLOSERS).item,
     // A one-way door doesn't count for the day's rule: no score, and the rule is still there to play.
@@ -1469,7 +1525,7 @@ function finishLoop() {
     round: playsRule(L) ? L.round || 1 : null,
     ...(playsRule(L) && L.rule === 'quickdraw' ? { drawSec: L.drawSec ?? null } : {}),
     ...(playsRule(L) && L.timeSaid != null ? { timeSaid: L.timeSaid } : {}),
-    ...(L.part ? { part: L.part, of: L.of || null } : {}),
+    ...(L.part || L.of ? { part: L.part || null, of: L.of || null } : {}),
   };
   // Today's rule: what this round earned, the stamp it leaves on the receipt, and any bonus.
   const result = C.ruleResult(receipt, S.receipts, { think: L.verdict === 'think' });
@@ -1497,6 +1553,11 @@ function finishLoop() {
     });
   }
   S.receipts.unshift(receipt);
+  // Threads: a kinda, a deadline in the words, or a part picked back up keeps the thing going.
+  // Not the day's mission or a dealt dare: those were never theirs to carry.
+  const handedOut = ['daily', 'dare'].includes(L.source) || L.rule === 'pick';
+  const thread = handedOut ? null : C.threadAfter(S.receipts, receipt, today);
+  if (thread) thread.root.thread = thread.thread;
   S.w = after;
   S.wis += wisDelta + bonus;
   S.active = null;
@@ -1546,6 +1607,7 @@ const receiptDate = (at) => new Date(at).toLocaleDateString('en-US', { month: 's
 function receiptHTML(r, showThing) {
   const rows = [];
   rows.push(['The thing', showThing ? esc(r.thing) : '<span class="redact" aria-label="Hidden"></span>']);
+  if (r.part >= 2) rows.push(['Part', String(r.part)]);
   if (r.thoughtMin) rows.push(['Overthought', C.fmtDuration(r.thoughtMin)]);
   const bailed = r.outcome === 'bailed';
   const kinda = r.outcome === 'some';
@@ -1649,6 +1711,7 @@ VIEWS.close = () => {
       ${forgiven ? '<p class="forgiven">You skipped yesterday. Streak kept. A day off is a day off.</p>' : ''}
       ${view.bailStreak > 1 ? `<p class="forgiven">${view.bailStreak}-day streak. Showing up counts.</p>` : ''}
       ${view.rule ? ruleResultHTML(view.rule, r) : ''}
+      ${nextBitCard(r)}
       ${r.fu?.type === 'plan' && ['open', 'dated'].includes(r.fu.state) ? dateChooser(r) : ''}
       ${drip ? dripCard(drip, after) : ''}
       ${view.revealed ? '' : credMove(r)}
@@ -1671,6 +1734,42 @@ VIEWS.close = () => {
   };
 };
 
+// Threads, on the receipt: when's the next bit (for a booking, when is it). Once a day is picked, just the day.
+function nextBitCard(r) {
+  const ask = C.nextBitAsk(S.receipts, r);
+  if (!ask) return '';
+  const root = C.threadRoot(S.receipts, r);
+  const t = root.thread;
+  const today = C.dateKey();
+  if (t?.state === 'open' && t.next && t.next > today && !t.picking) {
+    return `<div class="date-card done next-bit"><b>${fill(THREADS.saved, { date: dueText(t.next) })}</b><span>${THREADS.savedSub}</span>
+      <button class="link" data-a="next-change" data-id="${root.id}">${THREADS.change}</button></div>`;
+  }
+  if (t && t.state !== 'open') return '';
+  const A = THREADS.ask[ask];
+  const due = t?.due && t.due >= today ? t.due : C.whenFromText(root.thing, today).due;
+  const said = C.whenFromText(r.part >= 2 ? r.move : r.thing, today).on;
+  return `<div class="date-card next-bit">
+    <b>${A.title}</b><span>${A.sub}</span>
+    ${dueLine(due)}
+    ${dateChipsHTML({ action: 'next-date', id: root.id, chips: THREADS.chips, due, said })}
+    ${t?.state === 'open' ? `<button class="link" data-a="thread-close" data-id="${root.id}">${THREADS.allDone}</button>` : ''}
+  </div>`;
+}
+
+// What's still going, to pick up instead of typing it again. THE BOSS offers the big one first, hidden.
+function pickupHTML(L) {
+  if (L.part || L.thing.trim() || L.rule === 'pick' || L.rule === 'sequel' || (L.rule === 'double' && L.round > 1)) return '';
+  const today = C.dateKey();
+  const items = C.openThreads(S.receipts, today).slice(0, 3).map((th) => ({ id: th.r.id, label: esc(th.r.thing), meta: threadMeta(th) }));
+  if (L.rule === 'boss') {
+    const big = S.receipts.find((r) => r.fu?.type === 'plan' && ['open', 'dated'].includes(r.fu.state));
+    if (big) items.unshift({ id: big.id, label: `<span class="hush">${THREADS.bigOne} · HIDDEN</span>`, meta: bigDue(big) ? fill(THREADS.meta.due, { date: dueText(bigDue(big)) }) : '' });
+  }
+  if (!items.length) return '';
+  return `<div class="pickup"><p class="eyebrow">${THREADS.pickup}</p>${items.map((it) => `<button class="pickup-item" data-a="pickup" data-id="${it.id}"><strong>${it.label}</strong>${it.meta ? `<span>${esc(it.meta)}</span>` : ''}</button>`).join('')}</div>`;
+}
+
 // What today's rule made of this round. Round 1 of BACK TO BACK gets the button for round 2.
 function ruleResultHTML(rr, r) {
   const R = RULES[rr.id];
@@ -1685,6 +1784,7 @@ function ruleResultHTML(rr, r) {
     said: TIME_GUESSES[r.timeSaid]?.word || '',
     draw: r.drawSec != null ? `${r.drawSec.toFixed(1)} SEC` : '',
     drawWords: r.drawSec != null ? `${r.drawSec.toFixed(1)} seconds` : 'A while',
+    part: r.part || 2,
   };
   const sub = fill(ln.sub, o);
   const more = rr.id === 'double' && rr.kind === 'round' ? `<button class="btn" data-a="start">${R.next}</button>` : '';
@@ -1832,6 +1932,7 @@ VIEWS.week = () => {
   const back = new Set(w.comebacks.map((r) => r.id));
   const rest = w.moved.filter((r) => !back.has(r.id));
   const ahead = C.datedAhead(S.receipts, C.dateKey());
+  const going = C.openThreads(S.receipts, C.dateKey()).slice(0, 4);
   const section = (label, html) => `<p class="eyebrow section-label">${label}</p>${html}`;
   return {
     html: tabs('receipts', `${big(WEEK.title, { max: 110 })}
@@ -1844,10 +1945,41 @@ VIEWS.week = () => {
       </div>
       ${w.comebacks.length ? section(WEEK.comebacks, `<ul class="log">${w.comebacks.map(item).join('')}</ul>`) : ''}
       ${rest.length ? section(WEEK.moved, `<ul class="log">${rest.slice(0, 10).map(item).join('')}</ul>`) : ''}
+      ${going.length ? section(THREADS.pickup, `<ul class="week-open">${going.map((th) => `<li><span>${esc(th.r.thing)}<em>${esc(threadMeta(th))}</em></span><button class="chip" data-a="thread-go" data-id="${th.r.id}">${THREADS.card.go}</button></li>`).join('')}</ul>`) : ''}
       ${ahead ? section(WEEK.ahead, `<div class="week-ahead">${peek(ahead)}<p>${fill(WEEK.aheadLine, { date: dueText(ahead.fu.due) })}</p></div>`) : ''}
       ${w.open.length ? section(WEEK.open, `<ul class="week-open">${w.open.slice(0, 3).map((r) => `<li><span>${esc(r.thing)}</span><button class="chip" data-a="week-retry" data-id="${r.id}">${WEEK.retry}</button></li>`).join('')}</ul>`) : ''}
       <button class="btn ghost week-back" data-a="tab" data-to="home">${WEEK.back}</button>`),
   };
+};
+
+// A thread closed: how many parts it took, and since when.
+VIEWS.threadDone = () => {
+  const r = S.receipts.find((x) => x.id === view.id);
+  if (!r) return VIEWS.home();
+  const n = C.threadParts(S.receipts, r).length;
+  const D = THREADS.doneView;
+  return {
+    tone: 'lime',
+    html: step({
+      title: n > 1 ? fill(D.many, { n }) : D.one,
+      max: 170,
+      center: true,
+      back: false,
+      top: '<div style="flex:1"></div>',
+      sub: esc(fill(D.sub[n > 2 ? 1 : 0], { ago: C.agoWord(r.at, C.dateKey()).toLowerCase(), n })),
+      body: `<p class="pill">+${Math.min(n, 5)} WIS</p>`,
+      slam: true,
+      foot: '<button class="btn mega" data-a="tab" data-to="home">MOVE ON</button>',
+    }).replace('<h1 class="fit', `<p class="whine">“${esc(D.q)}”</p><h1 class="fit`),
+  };
+};
+VIEWS.threadDone.after = () => {
+  if (!view.fresh) return;
+  view.fresh = false;
+  sfx.boom();
+  shake();
+  buzz(40);
+  celebrate({ shape: 'star', motion: 'burst', count: 18 });
 };
 
 // ---------- method ----------
@@ -2291,6 +2423,9 @@ function refreshNudges() {
   // A follow-up that will be due goes out first. Lock screens are public, so never the thing or a name.
   const fu = C.followUpDue(S.receipts, C.dateKey(new Date(Date.now() + 86400000)));
   if (fu) lines.unshift(FOLLOW_UP.nudge[fu.fu.type]);
+  // A thread's next bit: "the next bit you picked is today", never what it is.
+  const thread = times[0] && C.threadDue(S.receipts, C.dateKey(times[0]));
+  if (thread?.why === 'next' && thread.picked === C.dateKey(times[0])) lines.unshift(THREADS.nudge);
   // The big one's day: "you picked today", never what it is.
   const dated = times[0] && C.datedDue(S.receipts, C.dateKey(times[0]));
   if (dated && dated.fu.due === C.dateKey(times[0])) lines.unshift(FOLLOW_UP.nudge.dated);
@@ -2378,6 +2513,17 @@ function retryLoop(r) {
   return go('loop');
 }
 
+// The next bit of a thread: straight to the first step, which is theirs to write. Today's rule where it fits,
+// and on a PART 2 day it counts as the part.
+function threadGo(root) {
+  const rr = ruleRound();
+  const byRule = ['speedrun', 'double', 'minute', 'quickdraw', 'blind', 'hardcore', 'sequel'].includes(rr.rule) ? { rule: rr.rule, round: rr.round, theme: rr.theme, ...(rr.dur ? { dur: rr.dur } : {}) } : {};
+  S.active = newLoop({ thing: root.thing, move: '', source: 'thread', step: 'fast', verdict: 'send', part: C.threadParts(S.receipts, root).length + 1, of: root.id, ...byRule });
+  S.active.draftKind = C.detectDraftKind(root.thing);
+  save();
+  return go('loop');
+}
+
 function startLoop(fields) {
   S.active = newLoop(fields);
   save();
@@ -2418,7 +2564,7 @@ function startDraftClock(copied) {
 // Nor for something the app handed them (a dare, the daily mission, the envelope), or round 2 of BACK TO BACK.
 // And once a day at most: three testers in a row called it a form by the second round.
 function dodgeNeeded(L) {
-  const handed = ['dare', 'daily'].includes(L.source) || L.rule === 'pick' || (L.rule === 'double' && L.round > 1) || L.part === 2;
+  const handed = ['dare', 'daily'].includes(L.source) || L.rule === 'pick' || (L.rule === 'double' && L.round > 1) || L.part >= 2;
   return L.thoughtMin == null && !L.dodged && L.source !== 'check' && !handed && S.dodgedOn !== C.dateKey();
 }
 
@@ -2518,7 +2664,8 @@ const ACTIONS = {
     const L = S.active;
     const r = S.receipts.find((x) => x.id === d.id);
     if (!L || !r) return undefined;
-    Object.assign(L, { thing: r.thing, move: '', part: 2, of: r.id, verdict: 'send', draftKind: null });
+    const root = C.threadRoot(S.receipts, r);
+    Object.assign(L, { thing: root.thing, move: '', part: C.threadParts(S.receipts, root).length + 1, of: root.id, verdict: 'send', draftKind: null });
     buzz(30);
     sfx.unlock();
     return loopTo('fast');
@@ -3043,6 +3190,79 @@ const ACTIONS = {
     refreshNudges();
     return go('verdict', { id: r.id, fresh: true });
   },
+  // Threads: the day for the next bit, from the receipt or the home card.
+  'next-date': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r) return undefined;
+    const today = C.dateKey();
+    const key = d.key || (d.n ? C.addDays(today, Number(d.n)) : '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key <= today) return toast(FOLLOW_UP.date.early);
+    r.thread = { due: C.whenFromText(r.thing, today).due, opened: r.at, ...r.thread, state: 'open', next: key, picking: false, snooze: null };
+    buzz(20);
+    save();
+    refreshNudges();
+    render();
+    return toast(THREADS.toast);
+  },
+  'next-change': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.thread) return undefined;
+    r.thread.picking = true;
+    save();
+    return render();
+  },
+  'thread-later': (d) => ACTIONS['next-change'](d),
+  'thread-snooze': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.thread) return undefined;
+    Object.assign(r.thread, { snooze: C.dateKey(), picking: false });
+    save();
+    render();
+    return toast(FOLLOW_UP.wait);
+  },
+  'thread-go': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    return r ? threadGo(C.threadRoot(S.receipts, r)) : undefined;
+  },
+  // Done with all of it. Two parts or more gets its own moment, and WIS for every part (up to 5).
+  'thread-close': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r) return undefined;
+    const n = C.threadParts(S.receipts, r).length;
+    r.thread = { ...r.thread, state: 'done', next: null, picking: false, closedAt: Date.now() };
+    buzz(30);
+    refreshNudges();
+    if (n < 2) {
+      save();
+      render();
+      return toast(THREADS.closed);
+    }
+    S.wis += Math.min(n, 5);
+    save();
+    return go('threadDone', { id: r.id, fresh: true });
+  },
+  'thread-drop': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.thread) return undefined;
+    Object.assign(r.thread, { state: 'dropped', next: null, picking: false });
+    save();
+    refreshNudges();
+    render();
+    return toast(THREADS.dropped);
+  },
+  // From the thing step: pick up what's still going. On THE BOSS it still gets the boss's questions.
+  pickup: (d) => {
+    const L = S.active;
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!L || !r) return undefined;
+    const root = C.threadRoot(S.receipts, r);
+    if (L.rule === 'boss' || L.full) {
+      const big = root.fu?.type === 'plan';
+      Object.assign(L, { thing: root.thing, of: root.id, part: big ? null : C.threadParts(S.receipts, root).length + 1 });
+      return ACTIONS['thing-next']();
+    }
+    return threadGo(root);
+  },
   // ROUND 2 from the week look-back, for anything still on the table.
   'week-retry': (d) => {
     const r = S.receipts.find((x) => x.id === d.id);
@@ -3369,6 +3589,7 @@ root.addEventListener('change', (e) => {
     render();
   }
   if (e.target.dataset?.c === 'fu-date' && e.target.value) ACTIONS['fu-date']({ id: e.target.dataset.id, key: e.target.value });
+  if (e.target.dataset?.c === 'next-date' && e.target.value) ACTIONS['next-date']({ id: e.target.dataset.id, key: e.target.value });
 });
 
 window.addEventListener('resize', fitAll);

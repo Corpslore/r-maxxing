@@ -1214,7 +1214,7 @@ export const RULES = {
     name: 'PART 2',
     card: 'Pick up something you started. Do the next bit.',
     tease: 'Pick up something you started. Do the next bit.',
-    tag: 'PART 2',
+    tag: 'PART {part}',
     tagOne: 'PART 1',
     title: 'PART 2.|PICK ONE|BACK UP.',
     sub: 'Things you did or kinda did. Big things get finished in parts.',
@@ -1226,7 +1226,7 @@ export const RULES = {
     fastPart2: 'PART 2.|NEXT BIT:',
     placeholder: 'the next tiny bit of it',
     lines: {
-      win: { title: 'PART 2: DONE.', sub: 'It moved again. Big things get finished in parts, not in one go.' },
+      win: { title: 'PART {part}: DONE.', sub: 'It moved again. Big things get finished in parts, not in one go.' },
       one: { title: 'PART 1 IS ON FILE.', sub: 'Next time PART 2 comes up, this one is on the list.' },
     },
   },
@@ -1330,4 +1330,55 @@ export const ROUGH_LINES = {
     'Rough one. It’s behind you now.',
     'Not every one goes fine. This one’s still off your plate.',
   ],
+};
+
+// Threads: things done in parts (a kinda, a booking, anything picked back up). The app brings the next bit
+// back on the day picked for it, and keeps a deadline found in their own words ("due dec 1", "by friday").
+// Home cards keep the thing blurred, like every card there.
+export const THREADS = {
+  ask: {
+    next: { title: 'NEXT BIT: WHEN?', sub: 'We’ll bring it back that day. Not before.' },
+    book: { title: 'WHEN IS IT?', sub: 'We’ll bring it back that day, with whatever comes after.' },
+  },
+  chips: [[1, 'TOMORROW'], [3, 'IN 3 DAYS'], [7, 'IN A WEEK']],
+  said: '{date} (YOU SAID)',
+  dayBefore: 'DAY BEFORE IT’S DUE',
+  pick: 'Or pick the day',
+  due: 'DUE {date} · {left}',
+  left: ['TODAY', 'TOMORROW', '{n} DAYS LEFT'],
+  saved: 'NEXT BIT: {date}',
+  savedSub: 'We’ll bring it back that day.',
+  change: 'Change it',
+  allDone: 'That was all of it',
+  toast: 'On file. We’ll bring it back that day.',
+  closed: 'Closed. That one’s done.',
+  card: {
+    today: 'TODAY’S NEXT BIT',
+    late: 'NEXT BIT · YOU PICKED {day}',
+    due: 'COMING DUE',
+    title: 'PART {n}.',
+    dueTitle: ['DUE TODAY.', 'DUE TOMORROW.'],
+    meta: 'Started {ago}. {parts} so far.',
+    one: 'One part',
+    many: '{n} parts',
+    last: 'last bit: {move}',
+    go: 'NEXT BIT',
+    later: 'NOT TODAY',
+    done: 'It’s done',
+    drop: 'Let it go',
+    laterTitle: 'WHEN, THEN?',
+    snooze: 'Ask me tomorrow',
+  },
+  dropped: 'Let go. No penalty.',
+  pickup: 'STILL GOING',
+  bigOne: 'THE BIG ONE',
+  fast: 'PART {n}.|NEXT BIT:',
+  doneView: {
+    q: 'Is it done?',
+    one: 'DONE.|ALL OF IT.',
+    many: 'DONE.|{n} PARTS.',
+    sub: ['Started {ago}. Some things take more than one go, and this one got all of them.', 'Started {ago}. Nobody does a big thing in one go. That’s the whole method.'],
+  },
+  meta: { one: '1 PART SO FAR', parts: '{n} PARTS SO FAR', next: 'NEXT {date}', due: 'DUE {date}' },
+  nudge: 'The next bit you picked is today.',
 };

@@ -755,6 +755,17 @@ a.btn { text-decoration: none; }
 /* What it was stays blurred on the home screen until tapped. */
 .fu-thing.peek { display: block; width: 100%; text-align: left; padding: 2px 0; background: none; border: 0; font: inherit; font-weight: 700; font-size: 14px; color: var(--mute); filter: blur(6px); cursor: pointer; }
 .fu-thing.peek.shown { filter: none; }
+.due-line { margin: 6px 0 0; font-family: "DM Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: .08em; color: var(--pink); }
+.thread-card { box-shadow: inset 0 0 0 3px var(--sun); }
+.thread-card .eyebrow { color: var(--sun); }
+.thread-links { display: flex; justify-content: center; gap: 22px; margin-top: 6px; }
+.pickup { display: grid; gap: 8px; margin-top: 16px; }
+.pickup .eyebrow { margin: 0; }
+.pickup-item { display: grid; gap: 2px; width: 100%; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--raised); color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.pickup-item strong { font-weight: 700; overflow-wrap: anywhere; }
+.pickup-item span { font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; color: var(--mute); }
+.week-open em { display: block; margin-top: 2px; font-style: normal; font-weight: 400; font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; color: var(--mute); }
+.next-bit .link { justify-self: start; margin-top: 4px; }
 .hush { font-family: "DM Mono", ui-monospace, monospace; font-size: 13px; letter-spacing: .08em; color: var(--mute); }
 /* Blurred so a glance over the shoulder can't read it. Says how to see it. */
 .fu-thing.peek:not(.shown) { filter: none; color: transparent; text-shadow: 0 0 9px var(--mute); }

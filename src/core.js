@@ -662,6 +662,9 @@ export function sequelCandidates(receipts, today, now = Date.now(), days = 14, m
     if (seen.has(k)) continue;
     seen.add(k);
     if (r.fu?.type === 'plan' || detectCrisis(r.thing) || detectCrisisCheck(r.thing) || detectOneWay(r.thing)) continue;
+    // A thread that's closed or let go is done being picked up.
+    const root = threadRoot(receipts, r);
+    if (root?.fu?.type === 'plan' || ['done', 'dropped'].includes(root?.thread?.state)) continue;
     out.push(r);
   }
   const rank = (r) => (r.outcome === 'some' ? 0 : 1);
@@ -725,7 +728,7 @@ export function ruleResult(r, before, { think = false } = {}) {
       return { kind: v, head: v === 'lie' ? 'TIME LIE' : v === 'called' ? 'CALLED THE CLOCK' : null, stamp: 'BLINDFOLD' };
     }
     case 'sequel':
-      return r.part === 2 ? { kind: 'win', head: 'PART 2', stamp: 'PART 2' } : { kind: 'one', head: null, stamp: 'PART 1' };
+      return r.part >= 2 ? { kind: 'win', head: `PART ${r.part}`, stamp: `PART ${r.part}` } : { kind: 'one', head: null, stamp: 'PART 1' };
     case 'hardcore':
       return did ? { kind: 'win', head: 'HARDCORE', stamp: 'HARDCORE', bonus: 1 } : { kind: 'kinda', head: null, stamp: 'HARDCORE' };
     default:
@@ -938,3 +941,192 @@ export const agoWord = (at, today) => {
   const n = dayDiff(dateKey(new Date(at)), today);
   return n <= 1 ? 'YESTERDAY' : `${n} DAYS AGO`;
 };
+
+// ---------- threads: things that take more than one go ----------
+// A thread is a thing done in parts: a kinda, a booking, or anything picked back up. It lives on its first
+// receipt (`thread`: state, next, due), and every part after it points back with `of`. The app brings it
+// back on the day picked for the next bit, and keeps any deadline found in the person's own words.
+// Big ones (one-way doors) keep their own dates and never become threads.
+
+// Dates in the person's own words: "due dec 1", "smog check sat 9am", "by friday", "tmrw", "in 3 days".
+// `due` is a deadline (due, by, before, until); `on` is the day something happens. Both are date keys from
+// `today` on, within a year. A date that already went by is a past reference, not a plan.
+const MONTH_RE = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const WEEKDAYS = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+const COUNT_WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, ten: 10, 'a couple': 2, 'a couple of': 2, 'a few': 3 };
+const DUE_BEFORE = /(?:\bdue|\bby|\bbefore|\bdeadline(?:\s+is)?|\buntil|\btill?|\bno later than)\s*(?:on\s+|the\s+)?$/;
+const DATE_WORD_BEFORE = /(?:\bon|\bthis|\bnext|\bby|\bdue|\bbefore|\buntil|\btill?)\s+$/;
+const weekdayOf = (key) => new Date(keyToUtc(key)).getUTCDay();
+
+function monthDayKey(today, m, d, yr) {
+  const p = (x) => String(x).padStart(2, '0');
+  const real = (y) => {
+    const k = `${y}-${p(m)}-${p(d)}`;
+    return d >= 1 && new Date(keyToUtc(k)).getUTCMonth() + 1 === m ? k : null;
+  };
+  if (yr) return real(yr < 100 ? 2000 + yr : yr);
+  const y = Number(today.slice(0, 4));
+  const k = real(y);
+  if (!k) return null;
+  const diff = dayDiff(today, k);
+  if (diff >= 0) return k;
+  // "dec 1" said on Dec 10 is about the past. "jan 5" said in November is next year.
+  return diff < -60 ? real(y + 1) : null;
+}
+
+export function whenFromText(text, today = dateKey()) {
+  const t = norm(text);
+  const found = [];
+  const add = (i, key) => {
+    if (!key) return;
+    const n = dayDiff(today, key);
+    if (n >= 0 && n <= 365) found.push({ i, key });
+  };
+  const week = (wd, next) => {
+    let n = (wd - weekdayOf(today) + 7) % 7;
+    if (next && n === 0) n = 7;
+    return addDays(today, n);
+  };
+  for (const m of t.matchAll(/\b(today|tonight)\b/g)) add(m.index, today);
+  for (const m of t.matchAll(/\b(tomorrow|tmrw|tmr|tmw|tomorow|2moro|2mrw)\b/g)) add(m.index, addDays(today, 1));
+  for (const m of t.matchAll(/\bnext week\b/g)) add(m.index, addDays(today, 7));
+  for (const m of t.matchAll(/\b(?:this\s+)?weekend\b/g)) add(m.index, week(6, false));
+  for (const m of t.matchAll(/\bend of (?:the )?week\b/g)) add(m.index, week(5, false));
+  for (const m of t.matchAll(/\bend of (?:the )?month\b/g)) {
+    const [y, mo] = today.split('-').map(Number);
+    add(m.index, addDays(`${mo === 12 ? y + 1 : y}-${String(mo === 12 ? 1 : mo + 1).padStart(2, '0')}-01`, -1));
+  }
+  for (const m of t.matchAll(/\bin (\d{1,3}|a couple(?: of)?|a few|an?|one|two|three|four|five|six|seven|ten) (days?|weeks?)\b/g)) {
+    const n = /^\d/.test(m[1]) ? Number(m[1]) : COUNT_WORDS[m[1]];
+    add(m.index, addDays(today, n * (m[2].startsWith('week') ? 7 : 1)));
+  }
+  for (const m of t.matchAll(/\b(?:(this|next)\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday|tues|weds|thurs)\b/g)) {
+    add(m.index, week(WEEKDAYS[m[2].slice(0, 3)], m[1] === 'next'));
+  }
+  // Short day names only where they can't be a word: "sat 9am", "on sun", "by fri". Not "sat down".
+  for (const m of t.matchAll(/\b(sun|mon|tue|wed|thu|thur|fri|sat)\b/g)) {
+    const before = t.slice(Math.max(0, m.index - 10), m.index);
+    const after = t.slice(m.index + m[0].length, m.index + m[0].length + 12);
+    if (!DATE_WORD_BEFORE.test(before) && !/^\s*(?:\d|@|night|morning|afternoon|eve)/.test(after)) continue;
+    add(m.index, week(WEEKDAYS[m[1].slice(0, 3)], /\bnext\s+$/.test(before)));
+  }
+  for (const m of t.matchAll(new RegExp(`\\b${MONTH_RE}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'g'))) {
+    add(m.index, monthDayKey(today, MONTH_KEYS.indexOf(m[1].slice(0, 3)) + 1, Number(m[2])));
+  }
+  for (const m of t.matchAll(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MONTH_RE}\\b`, 'g'))) {
+    add(m.index, monthDayKey(today, MONTH_KEYS.indexOf(m[2].slice(0, 3)) + 1, Number(m[1])));
+  }
+  // 12/1 only after "due", "by", "on" and the like: "1/2 of the essay" is a fraction.
+  for (const m of t.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?\b/g)) {
+    const before = t.slice(Math.max(0, m.index - 10), m.index);
+    if (!DATE_WORD_BEFORE.test(before) && !DUE_BEFORE.test(before)) continue;
+    const mo = Number(m[1]);
+    if (mo >= 1 && mo <= 12) add(m.index, monthDayKey(today, mo, Number(m[2]), m[3] ? Number(m[3]) : null));
+  }
+  for (const m of t.matchAll(/\bthe (\d{1,2})(?:st|nd|rd|th)\b/g)) {
+    const d = Number(m[1]);
+    const [y, mo] = today.split('-').map(Number);
+    let k = monthDayKey(today, mo, d, y);
+    if (!k || k < today) k = monthDayKey(today, mo === 12 ? 1 : mo + 1, d, mo === 12 ? y + 1 : y);
+    add(m.index, k);
+  }
+  found.sort((a, b) => a.i - b.i);
+  let due = null;
+  let on = null;
+  for (const f of found) {
+    if (DUE_BEFORE.test(t.slice(Math.max(0, f.i - 24), f.i))) due = due || f.key;
+    else on = on || f.key;
+  }
+  return { on, due };
+}
+
+export const THREAD_GRACE = 3;
+export const THREAD_STALE = 21;
+
+// The first receipt of the thread a receipt belongs to. `of` points back toward it.
+export function threadRoot(receipts, r) {
+  const list = receipts || [];
+  let cur = r;
+  const seen = new Set();
+  while (cur?.of && !seen.has(cur.of)) {
+    seen.add(cur.of);
+    const up = list.find((x) => x.id === cur.of);
+    if (!up) break;
+    cur = up;
+  }
+  return cur;
+}
+
+// Every part of a thread that moved, oldest first.
+export const threadParts = (receipts, root) =>
+  (receipts || []).filter((x) => x.outcome !== 'bailed' && threadRoot(receipts, x)?.id === root.id).sort((a, b) => a.at - b.at);
+
+// A big one, or a round done on one: its words stay hidden in lists.
+export const isBigOne = (receipts, r) => r?.fu?.type === 'plan' || threadRoot(receipts, r)?.fu?.type === 'plan';
+
+// Threads still going, most pressing first: a deadline, then the day picked for the next bit, then the latest
+// part. One that's gone quiet for three weeks, with nothing coming up, drops off the list.
+export function openThreads(receipts, today = dateKey(), now = Date.now()) {
+  const out = [];
+  for (const r of receipts || []) {
+    const t = r.thread;
+    if (!t || t.state !== 'open' || r.fu?.type === 'plan') continue;
+    const parts = threadParts(receipts, r);
+    const last = parts[parts.length - 1] || r;
+    const next = t.next && t.next >= today ? t.next : null;
+    const due = t.due && t.due >= today ? t.due : null;
+    if (!next && !due && now - last.at > THREAD_STALE * DAY_MS) continue;
+    out.push({ r, parts: parts.length, last, next, due, left: due ? dayDiff(today, due) : null, picked: t.next || null });
+  }
+  const far = '9999-12-31';
+  return out.sort((a, b) => (a.due || far).localeCompare(b.due || far) || (a.next || far).localeCompare(b.next || far) || b.last.at - a.last.at);
+}
+
+// The one thread home brings back today: the day picked for its next bit (or the first open after, for a
+// few days), or a deadline today or tomorrow with nothing done on it today. "Not today" hides it till tomorrow.
+export function threadDue(receipts, today = dateKey(), now = Date.now()) {
+  const list = openThreads(receipts, today, now).filter((th) => th.r.thread.snooze !== today && dateKey(new Date(th.last.at)) !== today);
+  const picked = list
+    .filter((th) => th.picked && th.picked <= today && dayDiff(th.picked, today) <= THREAD_GRACE)
+    .sort((a, b) => a.picked.localeCompare(b.picked));
+  if (picked.length) return { ...picked[0], why: 'next' };
+  const soon = list.find((th) => th.left != null && th.left <= 1);
+  return soon ? { ...soon, why: 'due' } : null;
+}
+
+// After a round: the thread it belongs to and what that thread looks like now, or null when it isn't one
+// (a chicken-out, a big one, or a one-off that got done). A kinda opens one. So does picking something back
+// up, or a deadline in the words. A picked day that has come is used up by the part done on it.
+export function threadAfter(receipts, receipt, today = dateKey()) {
+  if (!receipt || receipt.outcome === 'bailed' || receipt.fu?.type === 'plan') return null;
+  const root = threadRoot(receipts, receipt);
+  if (!root || root.fu?.type === 'plan' || detectCrisis(root.thing || '') || detectCrisisCheck(root.thing || '')) return null;
+  const t = root.thread || null;
+  const words = whenFromText(`${receipt.thing || ''} ${receipt.part ? receipt.move || '' : ''}`, today);
+  const picked = root.id !== receipt.id;
+  if (!picked && receipt.outcome !== 'some' && !words.due && t?.state !== 'open') return null;
+  return {
+    root,
+    thread: { state: 'open', next: t?.next && t.next > today ? t.next : null, due: words.due || t?.due || null, snooze: null, opened: t?.opened || root.at },
+  };
+}
+
+// What the receipt asks about the next bit: "book" (when is it?), "next" (when's the next bit?), or nothing.
+// A booking is asked about even when it's done: the appointment is the next bit.
+export function nextBitAsk(receipts, r) {
+  if (!r || r.outcome === 'bailed' || isBigOne(receipts, r)) return null;
+  const own = r.part >= 2 ? r.move : r.thing;
+  if (suggestKind(own || '', r.part >= 2 ? null : r.kind) === 'book') return 'book';
+  return threadRoot(receipts, r)?.thread?.state === 'open' ? 'next' : null;
+}
+
+// Quick date picks, cut to before a deadline, plus "the day before it's due" when that fits.
+export function chipsBefore(chips, today, due) {
+  const all = chips.map(([n, label]) => ({ n, label }));
+  if (!due) return all;
+  const left = dayDiff(today, due);
+  const out = all.filter((c) => c.n < left);
+  if (left >= 2 && !out.some((c) => c.n === left - 1)) out.push({ n: left - 1, label: null, dayBefore: true });
+  return out;
+}
