@@ -316,9 +316,13 @@ const CELEBRATIONS = [
 ];
 const FLASHES = ['sun', 'pink', 'blue', 'lime', 'white'];
 
+let lastParty = 0;
 function celebrate({ shape = 'brain', motion = 'fall', count = 22 } = {}) {
   // Quiet mode: no brain rain at all.
   if (S.quiet) return;
+  // Three answers in a row were three identical parties (tester 8). One a minute.
+  if (Date.now() - lastParty < 60000) return;
+  lastParty = Date.now();
   // Reduced motion: the same confetti, scattered and still, for a moment. No movement.
   const still = calm();
   if (still) count = Math.min(count, 18);
@@ -670,7 +674,7 @@ VIEWS.verdict = () => {
       back: false,
       top: '<div style="flex:1"></div>',
       sub: esc(sub),
-      body: `<p class="pill">+1 WIS</p>${r.fu.type === 'plan' && res === 'talked' && ['done', 'dated'].includes(r.fu.state) ? dateChooser(r, false, { title: FOLLOW_UP.date.next, sub: FOLLOW_UP.date.nextSub }) : ''}`,
+      body: `<p class="pill">+${r.fu.wis || 1} WIS</p>${r.fu.type === 'plan' && ['talked', 'decided'].includes(res) && ['done', 'dated'].includes(r.fu.state) ? `<div class="verdict-date">${dateChooser(r, false, res === 'decided' ? THREADS.stillLeft : { title: FOLLOW_UP.date.next, sub: FOLLOW_UP.date.nextSub })}</div>` : ''}`,
       slam: true,
       foot: `<button class="btn mega" data-a="share-verdict">SHARE THIS</button>
         <button class="btn ghost" data-a="tab" data-to="home">MOVE ON</button>`,
@@ -1164,10 +1168,10 @@ const STEPS = {
         title: think ? 'THE FIRST|10 MINUTES:' : (L.part >= 2 && fill(THREADS.fast, { n: L.part })) || RULES[L.rule]?.fast || 'FIRST|TINY STEP:',
         eyebrow: ruleTag(L),
         max: 96,
-        sub: ['free', 'retry', 'thread'].includes(L.source) && L.thing !== L.move ? esc(L.thing) : '',
+        sub: L.big ? `<span class="hush">${THREADS.bigHidden} · HIDDEN</span>` : ['free', 'retry', 'thread'].includes(L.source) && L.thing !== L.move ? esc(L.thing) : '',
         progress: PROGRESS.fast,
         pin: true,
-        body: `${draw}<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step"${L.part >= 2 ? ` placeholder="${esc(RULES.sequel.placeholder)}"` : ''}>${esc(L.move)}</textarea>${draftCard}${dread}${chips}`,
+        body: `${draw}<textarea id="move" class="field" rows="2" maxlength="140" aria-label="Your first step"${L.part >= 2 || L.big ? ` placeholder="${esc(RULES.sequel.placeholder)}"` : ''}>${esc(L.move)}</textarea>${draftCard}${dread}${chips}`,
         foot: `<button class="btn mega" id="next" data-a="fast-go" ${L.move.trim() ? '' : 'disabled'}>GO</button>`,
       }),
     };
@@ -1611,7 +1615,7 @@ function receiptHTML(r, showThing) {
   if (r.thoughtMin) rows.push(['Overthought', C.fmtDuration(r.thoughtMin)]);
   const bailed = r.outcome === 'bailed';
   const kinda = r.outcome === 'some';
-  rows.push(['Did it in', bailed ? 'Not today' : `${kinda ? 'Kinda. ' : ''}${C.fmtDid(r.doneSec)}`]);
+  rows.push(['Did it in', bailed ? 'Not today' : r.logged ? THREADS.logged : `${kinda ? 'Kinda. ' : ''}${C.fmtDid(r.doneSec)}`]);
   if (r.dread != null) rows.push(['You said', DREAD[r.dread]]);
   if (r.reality != null) rows.push(['It was', DREAD[r.reality]]);
   if (r.timeSaid != null) rows.push(['You guessed', TIME_GUESSES[r.timeSaid]?.word || '?']);
@@ -1907,7 +1911,7 @@ VIEWS.receipts = () => {
       <ul class="log">${S.receipts.map((r) => `<li><button class="log-item" data-a="open-receipt" data-id="${r.id}">
         <strong>${r.legendary ? '<span class="star" aria-label="Legendary">★</span> ' : ''}${listThing(r)}</strong>
         <span>${new Date(r.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-        <em>${r.outcome === 'bailed' ? 'chickened out' : `${r.outcome === 'some' ? 'kinda · ' : ''}${C.fmtDid(r.doneSec)}`}</em>
+        <em>${r.outcome === 'bailed' ? 'chickened out' : r.logged ? THREADS.logged.toLowerCase() : `${r.outcome === 'some' ? 'kinda · ' : ''}${C.fmtDid(r.doneSec)}`}</em>
       </button></li>`).join('')}</ul>`),
   };
 };
@@ -1927,7 +1931,7 @@ VIEWS.week = () => {
   const item = (r) => `<li><button class="log-item" data-a="open-receipt" data-id="${r.id}">
       <strong>${listThing(r)}</strong>
       <span>${new Date(r.at).toLocaleDateString('en-US', { weekday: 'long' })}</span>
-      <em>${r.outcome === 'some' ? 'kinda' : C.fmtDid(r.doneSec)}</em>
+      <em>${r.outcome === 'some' ? 'kinda' : r.logged ? THREADS.logged.toLowerCase() : C.fmtDid(r.doneSec)}</em>
     </button></li>`;
   const back = new Set(w.comebacks.map((r) => r.id));
   const rest = w.moved.filter((r) => !back.has(r.id));
@@ -1952,6 +1956,13 @@ VIEWS.week = () => {
   };
 };
 
+// Same errand, opened twice ("call the dmv" and "renew my registration"): offered, never closed for them.
+function relatedHTML(root) {
+  const list = C.relatedThreads(S.receipts, root).slice(0, 2);
+  if (!list.length) return '';
+  return `<div class="pickup related"><p class="eyebrow">${THREADS.related}</p>${list.map((th) => `<button class="pickup-item" data-a="thread-close-also" data-id="${th.r.id}"><strong>${esc(th.r.thing)}</strong><span>${THREADS.closeToo}</span></button>`).join('')}</div>`;
+}
+
 // A thread closed: how many parts it took, and since when.
 VIEWS.threadDone = () => {
   const r = S.receipts.find((x) => x.id === view.id);
@@ -1967,7 +1978,7 @@ VIEWS.threadDone = () => {
       back: false,
       top: '<div style="flex:1"></div>',
       sub: esc(fill(D.sub[n > 2 ? 1 : 0], { ago: C.agoWord(r.at, C.dateKey()).toLowerCase(), n })),
-      body: `<p class="pill">+${Math.min(n, 5)} WIS</p>`,
+      body: `<p class="pill">+${Math.min(n, 5)} WIS</p>${relatedHTML(r)}`,
       slam: true,
       foot: '<button class="btn mega" data-a="tab" data-to="home">MOVE ON</button>',
     }).replace('<h1 class="fit', `<p class="whine">“${esc(D.q)}”</p><h1 class="fit`),
@@ -2497,6 +2508,28 @@ function shareSheet(blob, text, filename) {
 
 // ---------- actions ----------
 
+// Answering a check-in counts as showing up, for the streak. It makes no receipt and doesn't move the day's rule.
+// Found by tester 8 (simulated): a day of check-ins and "it's done" got "You missed yesterday".
+function touchDay() {
+  const today = C.dateKey();
+  if (S.lastDay === today) return;
+  S.streak = C.nextStreak(S.lastDay, S.streak, today);
+  S.lastDay = today;
+}
+
+// "It's done" from home: the last part happened off the app. On file as a part, and it counts as a day.
+function logPart(root) {
+  const today = C.dateKey();
+  S.streak = C.nextStreak(S.lastDay, S.streak, today);
+  S.lastDay = today;
+  S.receipts.unshift({
+    id: Date.now().toString(36), thing: root.thing, move: THREADS.loggedMove, thoughtMin: null, doneSec: null, outcome: 'did',
+    dread: null, reality: null, at: Date.now(), day: C.dayNumber(today), n: S.receipts.length + 1, streak: S.streak, kind: null, to: '',
+    fu: null, draft: null, closer: fresh('closer', CLOSERS).item, rule: null, round: null,
+    part: C.threadParts(S.receipts, root).length + 1, of: root.id, logged: true,
+  });
+}
+
 // ROUND 2 on something they chickened out of: straight to the first step, by today's rule where it fits.
 function retryLoop(r) {
   const rr = ruleRound();
@@ -2519,7 +2552,7 @@ function threadGo(root) {
   const rr = ruleRound();
   const byRule = ['speedrun', 'double', 'minute', 'quickdraw', 'blind', 'hardcore', 'sequel'].includes(rr.rule) ? { rule: rr.rule, round: rr.round, theme: rr.theme, ...(rr.dur ? { dur: rr.dur } : {}) } : {};
   S.active = newLoop({ thing: root.thing, move: '', source: 'thread', step: 'fast', verdict: 'send', part: C.threadParts(S.receipts, root).length + 1, of: root.id, ...byRule });
-  S.active.draftKind = C.detectDraftKind(root.thing);
+  S.active.draftKind = null;
   save();
   return go('loop');
 }
@@ -2866,6 +2899,8 @@ const ACTIONS = {
     const L = S.active;
     L.move = L.move.trim();
     if (!L.move) return undefined;
+    // A part they wrote themselves: whether it's a message comes from what they wrote, not the thread's name.
+    if (L.part >= 2 && !L.draftKind) L.draftKind = C.detectDraftKind(L.move);
     if (C.detectCrisis(L.move)) return go('crisis');
     if (L.draftKind && L.dur === 600) L.dur = 120;
     if (!L.jokeOk && C.detectCrisisCheck(L.move)) return go('crisisCheck', { next: 'fast-go' });
@@ -3104,6 +3139,7 @@ const ACTIONS = {
   'fu-answer': (d) => {
     const r = S.receipts.find((x) => x.id === d.id);
     if (!r?.fu) return undefined;
+    touchDay();
     // IT HAS A DATE: which day? Then it gets asked about on that day. "Rather not say" keeps the plain answer.
     if (d.v === 'date' && r.fu.type === 'plan' && !d.skip) {
       r.fu.picking = true;
@@ -3151,6 +3187,7 @@ const ACTIONS = {
     const asked = r.fu.state === 'open' && view.name !== 'close';
     const moved = r.fu.state === 'dated';
     const waited = !!r.fu.wait;
+    if (moved || asked) touchDay();
     Object.assign(r.fu, { state: 'dated', due: key, picking: false, snooze: null, wait: false });
     buzz(20);
     if (asked) {
@@ -3178,14 +3215,17 @@ const ACTIONS = {
     }
     if (d.v === 'drop') {
       Object.assign(r.fu, { state: 'skipped', result: 'drop' });
+      touchDay();
       save();
       refreshNudges();
       render();
       return toast(FOLLOW_UP.drop);
     }
-    Object.assign(r.fu, { state: 'done', result: d.v });
+    // The big one moved: bigger answers weigh more than a text back.
+    Object.assign(r.fu, { state: 'done', result: d.v, wis: d.v === 'decided' ? 3 : 2 });
     r.fu.line = fresh(`verdict-${d.v}`, FOLLOW_UP.answers[d.v].map((x) => x.a)).index;
-    S.wis += 1;
+    S.wis += r.fu.wis;
+    touchDay();
     save();
     refreshNudges();
     return go('verdict', { id: r.id, fresh: true });
@@ -3228,6 +3268,7 @@ const ACTIONS = {
   'thread-close': (d) => {
     const r = S.receipts.find((x) => x.id === d.id);
     if (!r) return undefined;
+    if (view.name !== 'close') logPart(r);
     const n = C.threadParts(S.receipts, r).length;
     r.thread = { ...r.thread, state: 'done', next: null, picking: false, closedAt: Date.now() };
     buzz(30);
@@ -3240,6 +3281,15 @@ const ACTIONS = {
     S.wis += Math.min(n, 5);
     save();
     return go('threadDone', { id: r.id, fresh: true });
+  },
+  'thread-close-also': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.thread) return undefined;
+    Object.assign(r.thread, { state: 'done', next: null, picking: false, closedAt: Date.now() });
+    save();
+    refreshNudges();
+    render();
+    return toast(THREADS.closedToo);
   },
   'thread-drop': (d) => {
     const r = S.receipts.find((x) => x.id === d.id);
@@ -3256,9 +3306,12 @@ const ACTIONS = {
     const r = S.receipts.find((x) => x.id === d.id);
     if (!L || !r) return undefined;
     const root = C.threadRoot(S.receipts, r);
+    if (root.fu?.type === 'plan') {
+      Object.assign(L, { thing: root.thing, of: root.id, part: null, big: true, thoughtMin: root.thoughtMin || null, verdict: 'send', kind: null, forced: false, move: '', draftKind: null });
+      return loopTo('fast');
+    }
     if (L.rule === 'boss' || L.full) {
-      const big = root.fu?.type === 'plan';
-      Object.assign(L, { thing: root.thing, of: root.id, part: big ? null : C.threadParts(S.receipts, root).length + 1 });
+      Object.assign(L, { thing: root.thing, of: root.id, part: C.threadParts(S.receipts, root).length + 1 });
       return ACTIONS['thing-next']();
     }
     return threadGo(root);

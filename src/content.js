@@ -557,7 +557,7 @@ export const THINK_TIMER_LINES = [
   'This one gets the brain. Ten minutes, then it clocks out.',
   'Write the question down. Then a date. Then a name.',
   'Thinking on purpose. Not spiraling. Different thing.',
-  'Who would know? Write their name.',
+  'Who would know? Put their name in your notes.',
   'A date to decide by. That’s it. Not the decision.',
 ];
 
@@ -946,8 +946,8 @@ export const FOLLOW_UP = {
       { a: 'ROUND 2.|K.O.', sub: 'Chickened out, came back, did it. That’s the whole method.' },
     ],
     decided: [
-      { a: 'DECIDED.', sub: 'That was a big one, and it’s decided. The brain can put it down now.' },
-      { a: 'IT HAS|AN ANSWER.', sub: 'The big one is decided. That was the hard part, and it’s behind you.' },
+      { a: 'DECIDED.', sub: 'That was a big one, and it’s decided. What’s left is steps, not a decision.' },
+      { a: 'IT HAS|AN ANSWER.', sub: 'Deciding was the hard part. Whatever’s left is just steps.' },
     ],
     talked: [
       { a: 'NOT ALONE|ON IT|ANYMORE.', sub: 'Somebody who knows now knows. If it still needs deciding, give it a new date.' },
@@ -1093,6 +1093,7 @@ export const RULES = {
       first: { title: 'RECORD SET: {time}', sub: 'Now it’s the one to beat.' },
       win: { title: 'NEW RECORD: {time}', sub: 'The old one was {old}. The brain didn’t make it to the starting line.' },
       miss: { title: 'RECORD STANDS: {old}', sub: 'You: {time}. Done is done. It still counts.' },
+      kinda: { title: 'KINDA. NO RECORD.', sub: 'The clock only counts a done. Kinda still counts for you.' },
       fast: { title: 'UNDER 10 SECONDS', sub: 'Too fast to count for the record. Nobody believes under 10.' },
     },
   },
@@ -1381,4 +1382,13 @@ export const THREADS = {
   },
   meta: { one: '1 PART SO FAR', parts: '{n} PARTS SO FAR', next: 'NEXT {date}', due: 'DUE {date}' },
   nudge: 'The next bit you picked is today.',
+  // "It's done" from home: the last part happened off the app. It goes on file and counts as showing up.
+  logged: 'Off the app',
+  loggedMove: 'Finished it.',
+  related: 'SAME ERRAND?',
+  closeToo: 'CLOSE THIS ONE TOO',
+  closedToo: 'Closed that one too.',
+  // After DECIDED or TALKED TO SOMEBODY on a big one: it stays on file if there's more to do.
+  stillLeft: { title: 'ANYTHING LEFT TO DO ON IT?', sub: 'Put the next check on a day. Or don’t, if it’s handled.' },
+  bigHidden: 'THE BIG ONE',
 };

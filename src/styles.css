@@ -66,7 +66,9 @@ h1, h2, h3, p { margin: 0; }
 h1:focus { outline: none; }
 :focus-visible { outline: 3px solid var(--pink); outline-offset: 3px; border-radius: 6px; }
 
-.app { max-width: 460px; min-height: 100dvh; margin: 0 auto; display: flex; flex-direction: column; }
+/* Clip sideways only: a headline slamming in at 2.4x is ~850px wide for a frame, and on a phone that widens the
+   whole page (body's overflow-x alone doesn't stop it). clip, unlike hidden, leaves vertical scrolling alone. */
+.app { max-width: 460px; min-height: 100dvh; margin: 0 auto; display: flex; flex-direction: column; overflow-x: clip; }
 .shake { animation: shake .42s cubic-bezier(.36, .07, .19, .97); }
 @keyframes shake {
   10%, 90% { transform: translate(-3px, 1px) rotate(-.4deg); }
@@ -766,6 +768,9 @@ a.btn { text-decoration: none; }
 .pickup-item span { font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; color: var(--mute); }
 .week-open em { display: block; margin-top: 2px; font-style: normal; font-weight: 400; font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; color: var(--mute); }
 .next-bit .link { justify-self: start; margin-top: 4px; }
+/* On a bright answer screen the date card takes the screen's ink, not lavender. */
+.verdict-date .date-card { background: rgba(0, 0, 0, .1); box-shadow: inset 0 0 0 3px currentColor; }
+.verdict-date .date-card b, .verdict-date .date-card > span { color: inherit; }
 .hush { font-family: "DM Mono", ui-monospace, monospace; font-size: 13px; letter-spacing: .08em; color: var(--mute); }
 /* Blurred so a glance over the shoulder can't read it. Says how to see it. */
 .fu-thing.peek:not(.shown) { filter: none; color: transparent; text-shadow: 0 0 9px var(--mute); }

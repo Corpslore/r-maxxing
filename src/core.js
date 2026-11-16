@@ -323,6 +323,18 @@ export function detectOneWay(text) {
 
 // Which ready-made message fits what they typed. Order matters: the first match wins, so the
 // specific ones (professor, landlord) come before the general ones (reply, plans).
+// Your own family. Someone else's ("eli's mom", "elis mom", "his dad") isn't: that draft says "Love you."
+// "how is mom", "thanks mom" are still yours. Found by tester 8 (simulated), 2026-11-15.
+const FAMILY_WORD = /\b(?:mom|mum|mama|momma|dad|papa|parents?|grandma|grandpa|nana|abuela|abuelo)\b/g;
+const SOMEONE_ELSES = /\b(?:his|her|their|your|ur|[a-z]+'s|[a-z]+s)\s+$/;
+const STILL_MINE = /\b(?:is|was|has|this|thanks|as|us|miss)\s+$/;
+const OWN_FAMILY = {
+  test: (t) => [...t.matchAll(FAMILY_WORD)].some((m) => {
+    const before = t.slice(Math.max(0, m.index - 24), m.index);
+    return !SOMEONE_ELSES.test(before) || STILL_MINE.test(before);
+  }),
+};
+
 const DRAFT_PATTERNS = [
   ['rec', /\b(?:rec(?:ommendation)?\s+letter|letter\s+of\s+rec\w*|references?\s+letter)\b/],
   // Missed a quiz or class: a make-up ask, not an extension.
@@ -347,13 +359,13 @@ const DRAFT_PATTERNS = [
   ['cover', /\b(?:cover(?:ing)?|pick(?:ing)? up)\s+(?:(?:the|a|an|his|her|their|that|this|my|your)\s+)?(?:shifts?|sat(?:urday)?|sun(?:day)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?|fri(?:day)?|tonight|tomorrow|close|open)\b|\bcan (?:u|you|i) cover\b/],
   ['shift', /^(?=.*\b(?:shifts?|schedule|clos(?:e|es|ing)|opens|opening shifts?|time off|days? off|(?:mon|tues|wednes|thurs|fri|satur|sun)days? off|take me off|hours|cover for)\b)(?=.*\b(?:manager|boss|supervisor|work|job|shift lead)\b)/],
   ['meeting', /\b(?:meeting|1:1|one[\s-]on[\s-]one|boss|manager|raise|promotion)\b/],
-  ['family', /\b(?:mom|mum|mama|momma|dad|papa|parents?|grandma|grandpa|nana|abuela|abuelo)\b/],
+  ['family', OWN_FAMILY],
   ['reconnect', /\b(?:(?:\d+|two|three|a few|a couple(?: of)?)\s+(?:weeks?|months?|years?)\s+ago|been (?:so long|forever|a while|ages)|in (?:weeks|months|forever|ages))\b/],
   ['reply', /\b(?:(?:snapped|texted|messaged|dm'?d|dmed) me|on (?:delivered|read)|left (?:him|her|them|it) on|haven'?t (?:replied|answered|responded|texted back)|didn'?t (?:reply|answer|respond|text back)|never (?:replied|answered|texted back)|(?:idk|don'?t know) what to (?:say|text|reply|send)|what to say back|(?:text|texted|texting|message|messaged|messaging|dm|dming|snap|snapped|snapping|email|emailing|write|writing|call|calling)\s+(?:\w+\s+){0,2}back|text(?:ing)?\s+(?:him|her|them|my\s+\w+)|repl(?:y|ying)|respond\w*|get(?:ting)? back to|answer\w*\s+(?:the |her |his |their |my |that )?(?:text|message|email|dm|snap))\b/],
   ['reconnect', /\b(?:reach(?:ing)? out|reconnect\w*|haven't (?:talked|spoken)|old friend|been (?:a while|forever))\b/],
   ['issue', /\b(?:bring(?:ing)? (?:it |this |that )?up|say (?:the|that) (?:annoying|hard|awkward) thing|talk(?:ing)? to (?:him|her|them) about|bother(?:s|ing) me)\b/],
   ['favor', /\b(?:favou?r|ask(?:ing)? for help|need help from)\b/],
-  ['plans', /\b(?:hang(?:ing)? out|hangout|catch(?:ing)? up|make plans|invit\w*|what are you doing|grab (?:food|a drink|coffee|lunch|dinner)|get together)\b/],
+  ['plans', /\b(?:hang(?:ing)? out|hangout|catch(?:ing)? up|make plans|invit\w*|what are you doing|grab (?:food|a drink|coffee|lunch|dinner)|get together|(?:to|for) (?:lunch|dinner|coffee|drinks?|breakfast|brunch))\b/],
 ];
 
 // Doing homework on someone isn't messaging them: "look up the recruiter", "prep for the interview".
@@ -699,7 +711,8 @@ export function ruleResult(r, before, { think = false } = {}) {
       const counts = did && r.doneSec >= RECORD_MIN_SEC;
       if (counts && record == null) return { kind: 'first', head: 'RECORD SET', stamp: 'RECORD SET', record };
       if (counts && r.doneSec < record) return { kind: 'win', head: 'NEW RECORD', stamp: 'NEW RECORD', record };
-      return { kind: did && r.doneSec < RECORD_MIN_SEC ? 'fast' : 'miss', head: null, stamp: 'SPEEDRUN', record };
+      if (!did) return { kind: 'kinda', head: null, stamp: 'SPEEDRUN', record };
+      return { kind: r.doneSec < RECORD_MIN_SEC ? 'fast' : 'miss', head: null, stamp: 'SPEEDRUN', record };
     }
     case 'double': {
       const today = dateKey(new Date(r.at));
@@ -1129,4 +1142,14 @@ export function chipsBefore(chips, today, due) {
   const out = all.filter((c) => c.n < left);
   if (left >= 2 && !out.some((c) => c.n === left - 1)) out.push({ n: left - 1, label: null, dayBefore: true });
   return out;
+}
+
+// Open threads that look like the same errand as `root` (a shared real word: "registration"), to offer closing
+// them together. Only offered, never closed on their own.
+const ERRAND_SKIP = new Set(['about', 'after', 'again', 'before', 'could', 'every', 'finish', 'maybe', 'online', 'other', 'really', 'should', 'start', 'stuff', 'their', 'there', 'these', 'thing', 'things', 'those', 'today', 'tomorrow', 'tonight', 'where', 'which', 'while', 'would', 'pulled', 'write', 'email', 'today']);
+const errandWords = (t) => new Set((norm(t).match(/[a-z]{5,}/g) || []).filter((w) => !ERRAND_SKIP.has(w)));
+export function relatedThreads(receipts, root, today = dateKey(), now = Date.now()) {
+  const mine = errandWords(root?.thing);
+  if (!mine.size) return [];
+  return openThreads(receipts, today, now).filter((th) => th.r.id !== root.id && [...errandWords(th.r.thing)].some((w) => mine.has(w)));
 }

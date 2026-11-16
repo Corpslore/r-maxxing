@@ -324,7 +324,7 @@ export function renderReceiptCard(r, showThing, skin = null) {
   if (r.thoughtMin) rows.push(['OVERTHOUGHT', fmtDuration(r.thoughtMin).toUpperCase()]);
   const bailed = r.outcome === 'bailed';
   const kinda = r.outcome === 'some';
-  rows.push(['DID IT IN', bailed ? 'NOT TODAY' : `${kinda ? 'KINDA. ' : ''}${fmtDid(r.doneSec).toUpperCase()}`]);
+  rows.push(['DID IT IN', bailed ? 'NOT TODAY' : r.logged ? 'OFF THE APP' : `${kinda ? 'KINDA. ' : ''}${fmtDid(r.doneSec).toUpperCase()}`]);
   if (r.dread != null) rows.push(['YOU SAID', DREAD[r.dread].toUpperCase()]);
   if (r.reality != null) rows.push(['IT WAS', DREAD[r.reality].toUpperCase()]);
   if (r.timeSaid != null) rows.push(['YOU GUESSED', (TIME_GUESSES[r.timeSaid]?.word || '?').toUpperCase()]);
