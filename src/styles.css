@@ -771,6 +771,29 @@ a.btn { text-decoration: none; }
 /* On a bright answer screen the date card takes the screen's ink, not lavender. */
 .verdict-date .date-card { background: rgba(0, 0, 0, .1); box-shadow: inset 0 0 0 3px currentColor; }
 .verdict-date .date-card b, .verdict-date .date-card > span { color: inherit; }
+.onfile { display: grid; gap: 10px; margin: 6px 0 14px; padding: 12px 14px; border-radius: 16px; background: var(--raised); box-shadow: inset 0 0 0 3px var(--line); }
+.onfile .eyebrow { margin: 0; }
+.onfile-row { display: grid; gap: 2px; padding-top: 8px; border-top: 2px solid var(--line); }
+.onfile-row:first-of-type { padding-top: 0; border-top: 0; }
+.onfile-tag, .onfile-meta, .note-last, .note-when { font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; color: var(--mute); font-weight: 500; }
+.onfile-tag { color: var(--pink); }
+.onfile-go, .fu-card > .link { justify-self: start; margin-top: 2px; }
+.note-last { margin: 8px 0 0; color: var(--pink); }
+.update-form { display: grid; gap: 8px; margin-top: 14px; text-align: left; }
+.update-form > b { font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 26px; letter-spacing: .02em; }
+.update-form .eyebrow { margin: 0; color: inherit; opacity: .8; }
+.note-field { font-size: 20px; }
+.was-chips .chip.on { background: var(--fg); color: var(--bg); }
+.note-saved { display: grid; gap: 4px; margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: rgba(0, 0, 0, .12); text-align: left; }
+.note-saved b { font-family: "Anton", Impact, sans-serif; font-weight: 400; font-size: 26px; }
+.note-saved span { font-family: "DM Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: .08em; }
+.note-saved em { font-style: normal; }
+.note-history { display: grid; gap: 6px; margin-top: 18px; }
+.note-row { display: grid; gap: 2px; margin: 0; }
+.note-row span { font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; color: var(--mute); }
+.note-row em, .week-notes em { font-style: normal; color: var(--mute); }
+.week-notes { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.week-notes li { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--raised); }
 .hush { font-family: "DM Mono", ui-monospace, monospace; font-size: 13px; letter-spacing: .08em; color: var(--mute); }
 /* Blurred so a glance over the shoulder can't read it. Says how to see it. */
 .fu-thing.peek:not(.shown) { filter: none; color: transparent; text-shadow: 0 0 9px var(--mute); }

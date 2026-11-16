@@ -5,7 +5,7 @@ import {
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
-  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES, ROUGH_LINES, TIME_GUESSES, WEEK, THREADS,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES, ROUGH_LINES, TIME_GUESSES, WEEK, THREADS, UPDATE,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
@@ -464,6 +464,7 @@ VIEWS.home = () => {
         ${S.receipts.length < 3 ? '<p class="lower-better">LOWER IS BETTER. 0% IS THE DREAM.</p>' : credLine()}
       </section>
       ${lateNightCard()}
+      ${onFileCard()}
       ${ruleCard()}
       <button class="btn mega" data-a="start">${homeCta()}</button>
       <button class="daily ${done ? 'done' : ''}" data-a="daily" ${done ? 'disabled' : ''}>
@@ -598,7 +599,9 @@ function dateCard() {
     <strong>${r.fu.picking ? (r.fu.wait ? FOLLOW_UP.date.waitTitle : FOLLOW_UP.date.title) : D.title}</strong>
     ${peek(r)}
     ${r.fu.picking ? '' : dueLine(bigDue(r))}
+    ${r.fu.picking ? '' : lastHTML(r)}
     ${body}
+    ${r.fu.picking ? '' : `<button class="link" data-a="update" data-id="${r.id}" data-back="home">${UPDATE.link}</button>`}
   </div>`;
 }
 
@@ -644,7 +647,9 @@ function threadCard() {
     <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(r.thing)}${last ? ` · ${esc(last)}` : ''}</button>
     <p class="fu-sub">${esc(meta)}</p>
     ${dueLine(th.due)}
+    ${lastHTML(r)}
     ${body}
+    ${r.thread.picking ? '' : `<button class="link" data-a="update" data-id="${r.id}" data-back="home">${UPDATE.link}</button>`}
   </div>`;
 }
 
@@ -674,7 +679,7 @@ VIEWS.verdict = () => {
       back: false,
       top: '<div style="flex:1"></div>',
       sub: esc(sub),
-      body: `<p class="pill">+${r.fu.wis || 1} WIS</p>${r.fu.type === 'plan' && ['talked', 'decided'].includes(res) && ['done', 'dated'].includes(r.fu.state) ? `<div class="verdict-date">${dateChooser(r, false, res === 'decided' ? THREADS.stillLeft : { title: FOLLOW_UP.date.next, sub: FOLLOW_UP.date.nextSub })}</div>` : ''}`,
+      body: `<p class="pill">+${r.fu.wis || 1} WIS</p>${r.fu.type === 'plan' && ['talked', 'decided'].includes(res) ? (view.noted ? savedHTML(r, view.noted) : updateForm(r, true)) : ''}${r.fu.type === 'plan' && ['talked', 'decided'].includes(res) && ['done', 'dated'].includes(r.fu.state) ? `<div class="verdict-date">${dateChooser(r, false, res === 'decided' ? THREADS.stillLeft : { title: FOLLOW_UP.date.next, sub: FOLLOW_UP.date.nextSub })}</div>` : ''}`,
       slam: true,
       foot: `<button class="btn mega" data-a="share-verdict">SHARE THIS</button>
         <button class="btn ghost" data-a="tab" data-to="home">MOVE ON</button>`,
@@ -750,6 +755,55 @@ function dateChipsHTML({ action, id, chips, due = null, said = null }) {
 }
 // "PART 3 · NEXT SAT, NOV 21 · DUE DEC 1"
 const threadMeta = (th) => [th.parts === 1 ? THREADS.meta.one : fill(THREADS.meta.parts, { n: th.parts }), th.next ? fill(THREADS.meta.next, { date: dueText(th.next) }) : '', th.due ? fill(THREADS.meta.due, { date: dueText(th.due) }) : ''].filter(Boolean).join(' · ');
+// ---------- what happened ----------
+const dayName = (at) => new Date(at).toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+const wentWord = (n) => (n == null ? '' : DREAD[n].toUpperCase());
+// The brain's guess against how it went. Nothing when there was no guess.
+function brainLine(r, note) {
+  if (note?.was == null) return '';
+  if (note.was >= 2) return UPDATE.brain.hard;
+  const type = C.noteCheck(r.dread, note.was);
+  return type ? fill(UPDATE.brain[type], { said: wentWord(r.dread), was: wentWord(note.was) }) : '';
+}
+// The latest update, as the check-ins show it: when and how it went, the line blurred like the thing.
+function lastHTML(r) {
+  const n = C.latestNote(r);
+  if (!n) return '';
+  return `<p class="note-last">${fill(UPDATE.last, { when: dayName(n.at) })}${n.was != null ? ` · ${wentWord(n.was)}` : ''}</p>
+    ${n.text ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show the update">${esc(n.text)}</button>` : ''}`;
+}
+// One line and how it went. Both optional; one of them is enough.
+function updateForm(r, ask = false) {
+  return `<div class="update-form">
+    ${ask ? `<b>${UPDATE.ask}</b>` : ''}
+    <p class="eyebrow">${UPDATE.was}</p>
+    <div class="chips was-chips">${DREAD.map((w, i) => `<button class="chip ${view.noteWas === i ? 'on' : ''}" data-a="note-was" data-v="${i}">${w.toUpperCase()}</button>`).join('')}</div>
+    <textarea id="note" class="field note-field" rows="2" maxlength="${C.NOTE_MAX}" placeholder="${esc(UPDATE.placeholder)}" aria-label="What happened"></textarea>
+    <button class="btn" data-a="note-save" data-id="${r.id}">${UPDATE.save}</button>
+  </div>`;
+}
+function savedHTML(r, note) {
+  const line = brainLine(r, note);
+  return `<div class="note-saved"><b>${UPDATE.saved}</b>${note.was != null ? `<span>${UPDATE.was} ${wentWord(note.was)}</span>` : ''}${line ? `<em>${esc(line)}</em>` : ''}</div>`;
+}
+// What's on file on home: the big ones still open and threads with a deadline. Words blurred, + What happened.
+function onFileCard() {
+  const today = C.dateKey();
+  const items = C.onFile(S.receipts, today).slice(0, 3);
+  if (!items.length) return '';
+  return `<div class="onfile"><p class="eyebrow">${UPDATE.onFile}</p>${items.map((it) => {
+    const meta = [it.next ? fill(UPDATE.next, { date: dueText(it.next) }) : '', it.due ? fill(THREADS.due, { date: dueText(it.due), left: leftText(C.dayDiff(today, it.due)) }) : ''].filter(Boolean).join(' · ');
+    const last = C.latestNote(it.r);
+    return `<div class="onfile-row">
+      <span class="onfile-tag">${it.big ? UPDATE.tag.big : UPDATE.tag.thread}</span>
+      <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(it.r.thing)}</button>
+      ${meta ? `<span class="onfile-meta">${esc(meta)}</span>` : ''}
+      ${last ? `<span class="onfile-meta">${fill(UPDATE.last, { when: dayName(last.at) })}${last.was != null ? ` · ${wentWord(last.was)}` : ''}</span>` : ''}
+      <button class="link onfile-go" data-a="update" data-id="${it.r.id}" data-back="home">${UPDATE.link}</button>
+    </div>`;
+  }).join('')}</div>`;
+}
+
 // In a list, a big one shows as THE BIG ONE, never its words. Its receipt has the show toggle.
 const listThing = (r) => (C.isBigOne(S.receipts, r) ? `<span class="hush">${FOLLOW_UP.dated.title.replace(/\.$/, '')} · HIDDEN</span>` : esc(r.thing));
 
@@ -759,7 +813,7 @@ function exhibitHTML(e, i) {
   let rows;
   if (e.type === 'stall') rows = row('Thought about it', C.fmtDuration(e.thoughtMin)) + row('Took', C.fmtDid(e.doneSec));
   else if (e.type === 'bail' || e.type === 'overturned') rows = `<p class="ex-note">${TRIAL[e.type]}</p>`;
-  else rows = row('Your brain said', DREAD[e.said]) + row(e.answered ? 'They answered' : 'It was', e.answered ? (e.was ? 'Weird' : 'Fine') : DREAD[e.was]);
+  else rows = row('Your brain said', DREAD[e.said]) + row(e.answered ? 'They answered' : e.went ? 'It went' : 'It was', e.answered ? (e.was ? 'Weird' : 'Fine') : DREAD[e.was]);
   return `<li class="exhibit ex-${e.type}">
     <p class="ex-head"><b>EXHIBIT ${'ABCDEFGH'[i]}</b> · ${receiptDate(e.at)}</p>
     ${peek(r)}
@@ -1686,6 +1740,10 @@ VIEWS.close = () => {
         ${receiptHTML(r, showThing)}
         ${toggle}
         <div class="close-foot">
+          ${(() => {
+            const root = C.threadRoot(S.receipts, r);
+            return root?.fu?.type === 'plan' || root?.thread ? `<button class="btn ghost" data-a="update" data-id="${root.id}" data-back="receipts">${UPDATE.link}</button>` : '';
+          })()}
           <button class="btn mega" data-a="share-receipt">SHARE RECEIPT</button>
           <button class="btn ghost" data-a="tab" data-to="receipts">BACK</button>
         </div>
@@ -1937,6 +1995,7 @@ VIEWS.week = () => {
   const rest = w.moved.filter((r) => !back.has(r.id));
   const ahead = C.datedAhead(S.receipts, C.dateKey());
   const going = C.openThreads(S.receipts, C.dateKey()).slice(0, 4);
+  const notes = C.weekNotes(S.receipts).slice(0, 5);
   const section = (label, html) => `<p class="eyebrow section-label">${label}</p>${html}`;
   return {
     html: tabs('receipts', `${big(WEEK.title, { max: 110 })}
@@ -1950,6 +2009,12 @@ VIEWS.week = () => {
       ${w.comebacks.length ? section(WEEK.comebacks, `<ul class="log">${w.comebacks.map(item).join('')}</ul>`) : ''}
       ${rest.length ? section(WEEK.moved, `<ul class="log">${rest.slice(0, 10).map(item).join('')}</ul>`) : ''}
       ${going.length ? section(THREADS.pickup, `<ul class="week-open">${going.map((th) => `<li><span>${esc(th.r.thing)}<em>${esc(threadMeta(th))}</em></span><button class="chip" data-a="thread-go" data-id="${th.r.id}">${THREADS.card.go}</button></li>`).join('')}</ul>`) : ''}
+      ${notes.length ? section(UPDATE.week, `<ul class="week-notes">${notes.map(({ r, note }) => {
+        const big = C.isBigOne(S.receipts, r);
+        return `<li><span class="note-when">${dayName(note.at)}${note.was != null ? ` · ${wentWord(note.was)}` : ''}</span>
+          ${big ? `<span class="hush">${UPDATE.tag.big} · HIDDEN</span>` : `<strong>${esc(r.thing)}</strong>`}
+          ${note.text ? (big ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show the update">${esc(note.text)}</button>` : `<em>${esc(note.text)}</em>`) : ''}</li>`;
+      }).join('')}</ul>`) : ''}
       ${ahead ? section(WEEK.ahead, `<div class="week-ahead">${peek(ahead)}<p>${fill(WEEK.aheadLine, { date: dueText(ahead.fu.due) })}</p></div>`) : ''}
       ${w.open.length ? section(WEEK.open, `<ul class="week-open">${w.open.slice(0, 3).map((r) => `<li><span>${esc(r.thing)}</span><button class="chip" data-a="week-retry" data-id="${r.id}">${WEEK.retry}</button></li>`).join('')}</ul>`) : ''}
       <button class="btn ghost week-back" data-a="tab" data-to="home">${WEEK.back}</button>`),
@@ -1962,6 +2027,27 @@ function relatedHTML(root) {
   if (!list.length) return '';
   return `<div class="pickup related"><p class="eyebrow">${THREADS.related}</p>${list.map((th) => `<button class="pickup-item" data-a="thread-close-also" data-id="${th.r.id}"><strong>${esc(th.r.thing)}</strong><span>${THREADS.closeToo}</span></button>`).join('')}</div>`;
 }
+
+// What happened: one line and how it went, on a big one or a thread. The last few are listed under it.
+VIEWS.update = () => {
+  const r = S.receipts.find((x) => x.id === view.id);
+  if (!r) return VIEWS.home();
+  const big = C.isBigOne(S.receipts, r);
+  const past = (r.notes || []).slice(-3).reverse();
+  const history = past.length ? `<div class="note-history"><p class="eyebrow">${UPDATE.history}</p>${past.map((n) => `<p class="note-row"><span>${dayName(n.at)}${n.was != null ? ` · ${wentWord(n.was)}` : ''}</span>${n.text ? (big ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show the update">${esc(n.text)}</button>` : `<em>${esc(n.text)}</em>`) : ''}</p>`).join('')}</div>` : '';
+  return {
+    html: step({
+      title: UPDATE.title,
+      eyebrow: `<span class="rule-tag">${big ? UPDATE.eyebrowBig : UPDATE.eyebrowThread}</span>`,
+      max: 120,
+      back: false,
+      top: '<div style="flex:1"></div>',
+      sub: big ? peek(r) : esc(r.thing),
+      body: `${view.noted ? savedHTML(r, view.noted) : updateForm(r)}${history}`,
+      foot: view.noted ? `<button class="btn mega" data-a="update-back">${UPDATE.back}</button>` : `<button class="link" data-a="update-back">${UPDATE.never}</button>`,
+    }),
+  };
+};
 
 // A thread closed: how many parts it took, and since when.
 VIEWS.threadDone = () => {
@@ -2741,7 +2827,7 @@ const ACTIONS = {
     return go('home');
   },
   exit: () => {
-    if (view.name === 'objection') return go(view.back || 'home');
+    if (view.name === 'objection' || view.name === 'update') return go(view.back || 'home');
     S.active = null;
     save();
     return go(view.name === 'lesson' || view.name === 'pack' ? view.from || 'method' : 'home');
@@ -3282,6 +3368,36 @@ const ACTIONS = {
     save();
     return go('threadDone', { id: r.id, fresh: true });
   },
+  // What happened: open the form for a big one or a thread (whatever the receipt belongs to).
+  update: (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r) return undefined;
+    return go('update', { id: C.threadRoot(S.receipts, r).id, back: d.back || 'home', noteWas: null, noted: null });
+  },
+  'note-was': (d, el) => {
+    const v = Number(d.v);
+    view.noteWas = view.noteWas === v ? null : v;
+    el.parentNode.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.v) === view.noteWas));
+  },
+  'note-save': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r) return undefined;
+    const note = C.addNote(r, { text: document.getElementById('note')?.value || '', was: view.noteWas });
+    if (!note) return toast(UPDATE.empty);
+    // Once a day it's worth a WIS; it always counts as showing up.
+    const today = C.dateKey();
+    if (S.notedOn !== today) {
+      S.wis += 1;
+      S.notedOn = today;
+    }
+    touchDay();
+    save();
+    buzz(30);
+    view.noteWas = null;
+    view.noted = note;
+    return render();
+  },
+  'update-back': () => go(view.back || 'home'),
   'thread-close-also': (d) => {
     const r = S.receipts.find((x) => x.id === d.id);
     if (!r?.thread) return undefined;

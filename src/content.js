@@ -1392,3 +1392,32 @@ export const THREADS = {
   stillLeft: { title: 'ANYTHING LEFT TO DO ON IT?', sub: 'Put the next check on a day. Or don’t, if it’s handled.' },
   bigHidden: 'THE BIG ONE',
 };
+
+// What happened: one line and how it went, when something happens off the app. Kept on the big one or the
+// thread; check-ins show the latest. How it went uses the same four words as the guess, so it's evidence.
+export const UPDATE = {
+  link: '+ What happened',
+  title: 'WHAT|HAPPENED?',
+  eyebrowBig: 'THE BIG ONE',
+  eyebrowThread: 'STILL GOING',
+  ask: 'HOW’D IT GO?',
+  was: 'IT WENT',
+  placeholder: 'what they said, what’s next',
+  save: 'ON THE RECORD',
+  never: 'Never mind',
+  back: 'BACK',
+  saved: 'ON THE RECORD.',
+  empty: 'Pick how it went, or write a line.',
+  last: 'LAST UPDATE, {when}',
+  history: 'SO FAR',
+  brain: {
+    lie: 'The brain said {said}. It went {was}. It lied again.',
+    called: 'The brain said {said}. It went {was}. Point for the brain.',
+    worse: 'The brain said {said}. It went {was}. Worse than it said, and you did it anyway.',
+    hard: 'It went badly. That’s on the record too, and it doesn’t make it a mistake.',
+  },
+  onFile: 'ON FILE',
+  next: 'NEXT CHECK {date}',
+  tag: { big: 'THE BIG ONE', thread: 'STILL GOING' },
+  week: 'WHAT HAPPENED',
+};

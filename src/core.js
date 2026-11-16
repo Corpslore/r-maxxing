@@ -537,15 +537,19 @@ const ANSWER_LEVEL = { fine: 0, weird: 1 };
 // Disasters and anything that read as a crisis stay out of court. Nothing about those is funny.
 export function exhibitFor(r) {
   if (!r || detectCrisis(r.thing || '') || detectCrisisCheck(r.thing || '')) return null;
-  const base = { id: r.id, at: r.at };
+  let base = { id: r.id, at: r.at };
   if (r.outcome === 'bailed') return { ...base, type: r.fu?.result === 'did' ? 'overturned' : 'bail' };
   if (r.fu?.result === 'unsent') return null;
   const ans = ANSWER_LEVEL[r.fu?.result];
-  const was = ans ?? r.reality;
+  // How it went, from an update (the talk, the answer that came), beats the same-day guess too. It's dated the
+  // day it was written, so it shows up at the next hearing.
+  const wentNote = ans == null ? [...(r.notes || [])].reverse().find((n) => n.was != null) : null;
+  if (wentNote) base = { ...base, at: wentNote.at };
+  const was = ans ?? wentNote?.was ?? r.reality;
   if (was === 3) return null;
   if (r.dread != null && was != null) {
     const type = was < r.dread ? 'lie' : was > r.dread ? 'worse' : 'called';
-    return { ...base, type, said: r.dread, was, answered: ans != null };
+    return { ...base, type, said: r.dread, was, answered: ans != null, went: !!wentNote };
   }
   if (r.outcome === 'did' && r.thoughtMin && r.doneSec) return { ...base, type: 'stall', thoughtMin: r.thoughtMin, doneSec: r.doneSec };
   return null;
@@ -1152,4 +1156,56 @@ export function relatedThreads(receipts, root, today = dateKey(), now = Date.now
   const mine = errandWords(root?.thing);
   if (!mine.size) return [];
   return openThreads(receipts, today, now).filter((th) => th.r.id !== root.id && [...errandWords(th.r.thing)].some((w) => mine.has(w)));
+}
+
+// ---------- what happened: updates on the record ----------
+// When something happens off the app (the talk, the answer, the lunch), one line and how it went, with the
+// same four words as the guess. Kept on the big one or the thread (`notes`). The latest one is what the
+// check-ins show, and how it went is evidence: the brain's guess against what actually happened.
+// Found missing by tester 8 (simulated), 2026-11-15: "the rest of the raise story never makes it into the app".
+export const NOTE_MAX = 120;
+export const latestNote = (r) => (r?.notes?.length ? r.notes[r.notes.length - 1] : null);
+
+// The latest "how it went" on the record, or null.
+export function noteWas(r) {
+  for (let i = (r?.notes?.length || 0) - 1; i >= 0; i -= 1) if (r.notes[i].was != null) return r.notes[i].was;
+  return null;
+}
+
+// Adds an update. Nothing to add (no line, no "how it went") adds nothing.
+export function addNote(r, { text = '', was = null } = {}, at = Date.now()) {
+  const line = String(text || '').replace(/\s+/g, ' ').trim().slice(0, NOTE_MAX);
+  const how = was == null || was === '' ? null : Number(was);
+  if (!r || (!line && how == null)) return null;
+  const note = { at, text: line, was: how >= 0 && how <= 3 ? how : null };
+  r.notes = [...(r.notes || []), note];
+  return note;
+}
+
+// The brain's guess against how it went: "lie", "called", "worse", or null with either one missing.
+export function noteCheck(said, was) {
+  if (said == null || was == null) return null;
+  return was < said ? 'lie' : was > said ? 'worse' : 'called';
+}
+
+// Updates from the last week, newest first, each with the receipt it's on.
+export function weekNotes(receipts, now = Date.now()) {
+  const since = now - WEEK_DAYS * DAY_MS;
+  return (receipts || [])
+    .flatMap((r) => (r.notes || []).filter((n) => n.at > since && n.at <= now).map((n) => ({ r, note: n })))
+    .sort((a, b) => b.note.at - a.note.at);
+}
+
+// What's on file: big ones still open or dated, and threads with a deadline. Deadline first, then the next check.
+export function onFile(receipts, today = dateKey(), now = Date.now()) {
+  const dueOf = (thing) => {
+    const due = whenFromText(thing, today).due;
+    return due && due >= today ? due : null;
+  };
+  const big = (receipts || [])
+    .filter((r) => r.fu?.type === 'plan' && ['open', 'dated'].includes(r.fu.state))
+    .map((r) => ({ r, big: true, next: r.fu.state === 'dated' && r.fu.due >= today ? r.fu.due : null, due: dueOf(r.thing) }));
+  const threads = openThreads(receipts, today, now).filter((th) => th.due).map((th) => ({ r: th.r, big: false, next: th.next, due: th.due }));
+  const far = '9999-12-31';
+  return [...big, ...threads].sort((a, b) => (a.due || far).localeCompare(b.due || far) || (a.next || far).localeCompare(b.next || far));
 }
