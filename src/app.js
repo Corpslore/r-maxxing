@@ -161,17 +161,22 @@ function nextOpening(d = days()) {
 }
 // Brain court: the hearing owed today, and the next one coming.
 const tomorrowKey = () => C.dateKey(new Date(Date.now() + 86400000));
-const trialToday = () => C.trialDue(S.receipts, S.trials, C.dateKey());
+// Days they showed up without a receipt (a check-in, an update). Receipts and updates count on their own.
+const shown = () => S.shown || [];
+const showedToday = () => {
+  const t = C.dateKey();
+  return shown().includes(t) || S.receipts.some((r) => C.dateKey(new Date(r.at)) === t);
+};
+const trialToday = () => C.trialDue(S.receipts, S.trials, C.dateKey(), shown());
 const lastTrialAt = () => Math.max(0, ...S.trials.map((t) => t.at || 0));
 // soon: one is due tomorrow already. act: one will be, if they do one thing today.
 function trialAhead() {
   if (trialToday()) return null;
   const t = tomorrowKey();
-  const soon = C.trialDue(S.receipts, S.trials, t);
+  const soon = C.trialDue(S.receipts, S.trials, t, shown());
   if (soon) return { day: soon, how: 'soon' };
-  const today = C.dateKey();
-  if (S.receipts.some((r) => C.dateKey(new Date(r.at)) === today)) return null;
-  const ifAct = C.trialDue([...S.receipts, { at: Date.now() }], S.trials, t);
+  if (showedToday()) return null;
+  const ifAct = C.trialDue([...S.receipts, { at: Date.now() }], S.trials, t, shown());
   return ifAct ? { day: ifAct, how: 'act' } : null;
 }
 // {key} fill-ins for copy. Unknown keys (like the {b} address tokens) are left for render().
@@ -184,17 +189,17 @@ const recordText = () => {
 };
 function ruleNow() {
   const today = C.dateKey();
-  const id = C.ruleOn(S.receipts, today);
+  const id = C.ruleOn(S.receipts, today, shown());
   if (!id || !RULES[id]) return null;
   const rounds = C.ruleRounds(S.receipts, id, today);
   const need = C.RULE_ROUNDS[id] || 1;
-  return { id, n: C.dayOfShowingUp(S.receipts, today), rounds, need, done: rounds >= need };
+  return { id, n: C.dayOfShowingUp(S.receipts, today, shown()), rounds, need, done: rounds >= need };
 }
 // Tomorrow's rule, once something's been done today. Before that, today's is the one that matters.
 function ruleTomorrow() {
   const today = C.dateKey();
-  if (!S.receipts.some((r) => C.dateKey(new Date(r.at)) === today)) return null;
-  const id = C.ruleOn(S.receipts, tomorrowKey());
+  if (!showedToday()) return null;
+  const id = C.ruleOn(S.receipts, tomorrowKey(), [...shown(), today]);
   return id && RULES[id] ? id : null;
 }
 // The label a rule round wears on every screen of the loop.
@@ -576,10 +581,14 @@ function dateChooser(r, bare = false, head = null) {
   if (r.fu.state === 'dated' && !r.fu.picking) {
     return `<div class="date-card done"><b>${fill(D.saved, { date: dueText(r.fu.due) })}</b><span>${D.savedSub}</span></div>`;
   }
+  // Hearing back runs past any deadline, so it isn't cut to it. Neither is a deadline that's today or tomorrow:
+  // there'd be no day left to pick (found by tester 8, simulated, on deadline day).
+  const dl = bigDue(r);
+  const cut = !r.fu.wait && dl && C.dayDiff(C.dateKey(), dl) >= 2 ? dl : null;
   return `<div class="date-card ${bare ? 'bare' : ''}">
     ${bare ? '' : `<b>${head?.title || D.title}</b><span>${head?.sub || D.sub}</span>`}
-    ${dueLine(bigDue(r))}
-    ${dateChipsHTML({ action: 'fu-date', id: r.id, chips: D.chips, due: bigDue(r) })}
+    ${r.fu.wait ? '' : dueLine(dl)}
+    ${dateChipsHTML({ action: 'fu-date', id: r.id, chips: r.fu.wait ? D.waitChips : D.chips, due: cut })}
   </div>`;
 }
 
@@ -590,7 +599,9 @@ function dateCard() {
   const r = C.datedDue(S.receipts, today);
   if (!r) return '';
   const D = FOLLOW_UP.dated;
-  const eyebrow = r.fu.due === today ? D.today : fill(D.late, { day: dueText(r.fu.due) });
+  // Two on file for the same day: one card at a time, and a line so the other isn't lost.
+  const more = C.datedDueList(S.receipts, today).length - 1;
+  const eyebrow = [r.fu.due === today ? D.today : fill(D.late, { day: dueText(r.fu.due) }), namedTag(r)].filter(Boolean).join(' · ');
   const body = r.fu.picking
     ? dateChooser(r, true)
     : `<p class="fu-sub">${D.sub}</p><div class="fu-choices">${D.choices.map(([v, label]) => `<button class="chip" data-a="fu-dated" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div>`;
@@ -601,7 +612,8 @@ function dateCard() {
     ${r.fu.picking ? '' : dueLine(bigDue(r))}
     ${r.fu.picking ? '' : lastHTML(r)}
     ${body}
-    ${r.fu.picking ? '' : `<button class="link" data-a="update" data-id="${r.id}" data-back="home">${UPDATE.link}</button>`}
+    ${r.fu.picking ? `<button class="link" data-a="fu-unpick" data-id="${r.id}">${FOLLOW_UP.date.unpick}</button>` : `<button class="link" data-a="update" data-id="${r.id}" data-back="home">${UPDATE.link}</button>`}
+    ${more > 0 ? `<p class="fu-more">${fill(UPDATE.more, { n: more })}</p>` : ''}
   </div>`;
 }
 
@@ -679,7 +691,7 @@ VIEWS.verdict = () => {
       back: false,
       top: '<div style="flex:1"></div>',
       sub: esc(sub),
-      body: `<p class="pill">+${r.fu.wis || 1} WIS</p>${r.fu.type === 'plan' && ['talked', 'decided'].includes(res) ? (view.noted ? savedHTML(r, view.noted) : updateForm(r, true)) : ''}${r.fu.type === 'plan' && ['talked', 'decided'].includes(res) && ['done', 'dated'].includes(r.fu.state) ? `<div class="verdict-date">${dateChooser(r, false, res === 'decided' ? THREADS.stillLeft : { title: FOLLOW_UP.date.next, sub: FOLLOW_UP.date.nextSub })}</div>` : ''}`,
+      body: `<p class="pill">+${r.fu.wis || 1} WIS</p>${r.fu.type === 'plan' && ['talked', 'decided'].includes(res) ? (view.noted || noteSince(r) ? savedHTML(r, view.noted || noteSince(r)) : updateForm(r, true)) : ''}${r.fu.type === 'plan' && ['talked', 'decided'].includes(res) && ['done', 'dated'].includes(r.fu.state) ? `<div class="verdict-date">${dateChooser(r, false, res === 'decided' ? THREADS.stillLeft : { title: FOLLOW_UP.date.next, sub: FOLLOW_UP.date.nextSub })}</div>` : ''}`,
       slam: true,
       foot: `<button class="btn mega" data-a="share-verdict">SHARE THIS</button>
         <button class="btn ghost" data-a="tab" data-to="home">MOVE ON</button>`,
@@ -762,8 +774,40 @@ const wentWord = (n) => (n == null ? '' : DREAD[n].toUpperCase());
 function brainLine(r, note) {
   if (note?.was == null) return '';
   if (note.was >= 2) return UPDATE.brain.hard;
+  // After the first, against the last update, not the old guess again ("it lied again" three days running).
+  const prev = (r.notes || []).filter((n) => n.at < note.at && n.was != null).pop();
+  if (prev) return prev.was === note.was ? '' : fill(UPDATE.brain[note.was < prev.was ? 'better' : 'rougher'], { day: dayName(prev.at), prev: wentWord(prev.was) });
   const type = C.noteCheck(r.dread, note.was);
-  return type ? fill(UPDATE.brain[type], { said: wentWord(r.dread), was: wentWord(note.was) }) : '';
+  return type ? fill(UPDATE.brain[type], { when: receiptDate(r.at), said: wentWord(r.dread), was: wentWord(note.was) }) : '';
+}
+// An update already written today, or since the day it was on file for: the answer screen shows it
+// instead of asking HOW'D IT GO? again (tester 8, simulated: "I told you Monday. You were there.").
+const noteSince = (r) => {
+  const n = C.latestNote(r);
+  if (!n) return null;
+  const k = C.dateKey(new Date(n.at));
+  return k === C.dateKey() || (r.fu?.due && k >= r.fu.due) ? n : null;
+};
+// A date in what they just wrote ("docs due dec 15", "calling tmrw"): offered as the next check, never set
+// on its own. Big ones and open threads only.
+function nextFromNote(r, note) {
+  if (!note?.text) return '';
+  const big = r.fu?.type === 'plan';
+  if (!big && r.thread?.state !== 'open') return '';
+  const today = C.dateKey();
+  const w = C.whenFromText(note.text, today);
+  const opts = [];
+  if (w.on && w.on > today) opts.push({ key: w.on, label: fill(UPDATE.nextSaid, { date: dueText(w.on) }) });
+  const before = w.due ? C.addDays(w.due, -1) : null;
+  if (before && before > today && !opts.some((o) => o.key === before)) opts.push({ key: before, label: fill(UPDATE.nextBefore, { date: dueText(before) }) });
+  if (!opts.length) return '';
+  const set = big ? (r.fu.state === 'dated' ? r.fu.due : null) : r.thread.next;
+  return `<div class="update-next"><p class="eyebrow">${UPDATE.nextAsk}</p><div class="chips">${opts.map((o) => `<button class="chip ${o.key === set ? 'on' : ''}" data-a="${big ? 'fu-date' : 'next-date'}" data-id="${r.id}" data-key="${o.key}">${o.label}</button>`).join('')}</div></div>`;
+}
+// After an update on the big one's day: where it stands now, the same answers as the check-in card.
+function statusHTML(r) {
+  if (!(r.fu?.type === 'plan' && r.fu.state === 'dated' && r.fu.due <= C.dateKey())) return '';
+  return `<div class="update-status"><p class="eyebrow">${UPDATE.now}</p><div class="fu-choices">${FOLLOW_UP.dated.choices.map(([v, label]) => `<button class="chip" data-a="fu-dated" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div></div>`;
 }
 // The latest update, as the check-ins show it: when and how it went, the line blurred like the thing.
 function lastHTML(r) {
@@ -779,6 +823,7 @@ function updateForm(r, ask = false) {
     <p class="eyebrow">${UPDATE.was}</p>
     <div class="chips was-chips">${DREAD.map((w, i) => `<button class="chip ${view.noteWas === i ? 'on' : ''}" data-a="note-was" data-v="${i}">${w.toUpperCase()}</button>`).join('')}</div>
     <textarea id="note" class="field note-field" rows="2" maxlength="${C.NOTE_MAX}" placeholder="${esc(UPDATE.placeholder)}" aria-label="What happened"></textarea>
+    <p class="note-count" id="note-count" hidden></p>
     <button class="btn" data-a="note-save" data-id="${r.id}">${UPDATE.save}</button>
   </div>`;
 }
@@ -786,6 +831,9 @@ function savedHTML(r, note) {
   const line = brainLine(r, note);
   return `<div class="note-saved"><b>${UPDATE.saved}</b>${note.was != null ? `<span>${UPDATE.was} ${wentWord(note.was)}</span>` : ''}${line ? `<em>${esc(line)}</em>` : ''}</div>`;
 }
+// More than one big one open: each says the day it was named, so the raise and the application aren't twins.
+const bigsOpen = () => C.onFile(S.receipts, C.dateKey()).filter((it) => it.big).length;
+const namedTag = (r) => (bigsOpen() > 1 ? fill(UPDATE.named, { date: receiptDate(r.at) }) : '');
 // What's on file on home: the big ones still open and threads with a deadline. Words blurred, + What happened.
 function onFileCard() {
   const today = C.dateKey();
@@ -795,7 +843,7 @@ function onFileCard() {
     const meta = [it.next ? fill(UPDATE.next, { date: dueText(it.next) }) : '', it.due ? fill(THREADS.due, { date: dueText(it.due), left: leftText(C.dayDiff(today, it.due)) }) : ''].filter(Boolean).join(' · ');
     const last = C.latestNote(it.r);
     return `<div class="onfile-row">
-      <span class="onfile-tag">${it.big ? UPDATE.tag.big : UPDATE.tag.thread}</span>
+      <span class="onfile-tag">${it.big ? [UPDATE.tag.big, namedTag(it.r)].filter(Boolean).join(' · ') : UPDATE.tag.thread}</span>
       <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(it.r.thing)}</button>
       ${meta ? `<span class="onfile-meta">${esc(meta)}</span>` : ''}
       ${last ? `<span class="onfile-meta">${fill(UPDATE.last, { when: dayName(last.at) })}${last.was != null ? ` · ${wentWord(last.was)}` : ''}</span>` : ''}
@@ -1589,7 +1637,7 @@ function finishLoop() {
   const result = C.ruleResult(receipt, S.receipts, { think: L.verdict === 'think' });
   if (result?.stamp) receipt.stamp = result.stamp;
   const bonus = result?.bonus || 0;
-  const ruleView = result ? { ...result, id: L.rule, n: C.dayOfShowingUp(S.receipts, today) } : null;
+  const ruleView = result ? { ...result, id: L.rule, n: C.dayOfShowingUp(S.receipts, today, shown()) } : null;
   // The check already stamped LIED or CALLED IT, with the count and the court's number. The receipt doesn't say it twice.
   const revealed = ['lie', 'called', 'worse'].includes(C.revealFor(receipt.dread, receipt.reality)?.type);
   const line = closeLine(receipt, {
@@ -2043,7 +2091,7 @@ VIEWS.update = () => {
       back: false,
       top: '<div style="flex:1"></div>',
       sub: big ? peek(r) : esc(r.thing),
-      body: `${view.noted ? savedHTML(r, view.noted) : updateForm(r)}${history}`,
+      body: `${view.noted ? savedHTML(r, view.noted) + nextFromNote(r, view.noted) + statusHTML(r) : updateForm(r)}${history}`,
       foot: view.noted ? `<button class="btn mega" data-a="update-back">${UPDATE.back}</button>` : `<button class="link" data-a="update-back">${UPDATE.never}</button>`,
     }),
   };
@@ -2515,7 +2563,7 @@ function refreshNudges() {
   const times = C.nudgeTimes({ hour: S.nudge.h, minute: S.nudge.m || 0, doneToday: S.lastDay === C.dateKey() });
   const lines = C.shuffled(NUDGE_LINES).map((l) => C.addr(l, S.who));
   // The day's rule, by name only.
-  const rule = times[0] && C.ruleOn(S.receipts, C.dateKey(times[0]));
+  const rule = times[0] && C.ruleOn(S.receipts, C.dateKey(times[0]), shown());
   if (rule && RULES[rule]) lines.unshift(fill(RULES.nudge, { name: RULES[rule].name, tease: RULES[rule].tease }));
   // A follow-up that will be due goes out first. Lock screens are public, so never the thing or a name.
   const fu = C.followUpDue(S.receipts, C.dateKey(new Date(Date.now() + 86400000)));
@@ -2527,7 +2575,7 @@ function refreshNudges() {
   const dated = times[0] && C.datedDue(S.receipts, C.dateKey(times[0]));
   if (dated && dated.fu.due === C.dateKey(times[0])) lines.unshift(FOLLOW_UP.nudge.dated);
   // Brain court beats everything on the day it's in session.
-  if (times[0] && C.trialDue(S.receipts, S.trials, C.dateKey(times[0]))) lines.unshift(TRIAL.nudge);
+  if (times[0] && C.trialDue(S.receipts, S.trials, C.dateKey(times[0]), shown())) lines.unshift(TRIAL.nudge);
   return scheduleNudges(times, lines);
 }
 
@@ -2594,10 +2642,12 @@ function shareSheet(blob, text, filename) {
 
 // ---------- actions ----------
 
-// Answering a check-in counts as showing up, for the streak. It makes no receipt and doesn't move the day's rule.
-// Found by tester 8 (simulated): a day of check-ins and "it's done" got "You missed yesterday".
+// Answering a check-in or writing an update counts as showing up: for the streak, the day's rule and the
+// next hearing. It makes no receipt. Found by tester 8 (simulated): a day of check-ins got "You missed
+// yesterday", and on v31 the rule card stuck a day behind and the day-30 hearing slid past day 30.
 function touchDay() {
   const today = C.dateKey();
+  if (!shown().includes(today)) S.shown = [...shown().slice(-120), today];
   if (S.lastDay === today) return;
   S.streak = C.nextStreak(S.lastDay, S.streak, today);
   S.lastDay = today;
@@ -3287,7 +3337,14 @@ const ACTIONS = {
     save();
     refreshNudges();
     render();
-    return toast(waited ? FOLLOW_UP.date.waited : moved ? FOLLOW_UP.date.moved : FOLLOW_UP.date.toast);
+    return toast(fill(waited ? FOLLOW_UP.date.waited : moved ? FOLLOW_UP.date.moved : FOLLOW_UP.date.toast, { date: dueText(key) }));
+  },
+  'fu-unpick': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.fu) return undefined;
+    Object.assign(r.fu, { picking: false, wait: false });
+    save();
+    return render();
   },
   // The big one, on its day. No push either way; a new date just goes back on file.
   'fu-dated': (d) => {
@@ -3297,7 +3354,7 @@ const ACTIONS = {
       r.fu.picking = true;
       r.fu.wait = d.v === 'waiting';
       save();
-      return render();
+      return view.name === 'update' ? go('home') : render();
     }
     if (d.v === 'drop') {
       Object.assign(r.fu, { state: 'skipped', result: 'drop' });
@@ -3725,6 +3782,14 @@ root.addEventListener('click', (e) => {
 
 root.addEventListener('input', (e) => {
   const t = e.target;
+  if (t.id === 'note') {
+    const left = C.NOTE_MAX - t.value.length;
+    const c = document.getElementById('note-count');
+    if (c) {
+      c.hidden = left > 30;
+      c.textContent = fill(UPDATE.count, { n: left });
+    }
+  }
   if (['thing', 'move', 'draft'].includes(t.id)) grow(t);
   if (t.id === 'draft') document.getElementById('blank-note')?.toggleAttribute('hidden', !C.hasBlanks(t.value));
   if (!S.active) return;

@@ -358,6 +358,7 @@ const DRAFT_PATTERNS = [
   // Being asked to cover: usually a yes, sometimes a no. Asking someone to cover FOR you stays a shift ask.
   ['cover', /\b(?:cover(?:ing)?|pick(?:ing)? up)\s+(?:(?:the|a|an|his|her|their|that|this|my|your)\s+)?(?:shifts?|sat(?:urday)?|sun(?:day)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?|fri(?:day)?|tonight|tomorrow|close|open)\b|\bcan (?:u|you|i) cover\b/],
   ['shift', /^(?=.*\b(?:shifts?|schedule|clos(?:e|es|ing)|opens|opening shifts?|time off|days? off|(?:mon|tues|wednes|thurs|fri|satur|sun)days? off|take me off|hours|cover for)\b)(?=.*\b(?:manager|boss|supervisor|work|job|shift lead)\b)/],
+  ['thanks', /\bthank[\s-]?you (?:text|note|message|msg|email|card|dm)\b|\b(?:text|note|message|email|card)\s+(?:to\s+)?thank\w*|\bthank(?:ing)?\s+(?:my\s+)?[a-z]+\s+for\b/],
   ['meeting', /\b(?:meeting|1:1|one[\s-]on[\s-]one|boss|manager|raise|promotion)\b/],
   ['family', OWN_FAMILY],
   ['reconnect', /\b(?:(?:\d+|two|three|a few|a couple(?: of)?)\s+(?:weeks?|months?|years?)\s+ago|been (?:so long|forever|a while|ages)|in (?:weeks|months|forever|ages))\b/],
@@ -393,7 +394,7 @@ export function fillDraft(template, name, hints = {}) {
 }
 
 const MOVE_PATTERNS = [
-  ['lookup', /^(?:look(?:ing)? (?:up|into|over)|research\w*|google|stalk\w*|find out)\b/],
+  ['lookup', /^(?:look(?:ing)? (?:up|into|over)|research\w*|google|stalk\w*|find out)\b|\bfind (?:the |their |his |her |a |an )?(?:phone number|number|hours|address|email|contact|info\w*|website|link)\b/],
   ['gym', /\b(?:gym|work ?out|workout|run|running|lift\w*|exercise|walk)\b/],
   ['email', /\b(?:e-?mail\w*|inbox)\b/],
   ['apply', /\b(?:apply|applying|application|resume|cv)\b/],
@@ -516,15 +517,22 @@ export function lifetime(receipts) {
 
 export const TRIAL_DAYS = [3, 7, 14, 30];
 
-// Days with a receipt before `today`. Today's own activity counts toward the next hearing, not this one.
-export function daysActiveBefore(receipts, today) {
-  return new Set((receipts || []).map((r) => dateKey(new Date(r.at))).filter((k) => k < today)).size;
+// Days they showed up before `today`: a receipt, an update, or a check-in answered (`shown`, date keys).
+// One count for all of it, so the streak, the day's rule and the next hearing move together.
+// Today's own activity counts toward the next hearing, not this one.
+export function daysActiveBefore(receipts, today, shown = []) {
+  const days = new Set(shown || []);
+  for (const r of receipts || []) {
+    days.add(dateKey(new Date(r.at)));
+    for (const n of r.notes || []) days.add(dateKey(new Date(n.at)));
+  }
+  return [...days].filter((k) => k < today).length;
 }
 
 // The hearing owed on `today`, or null. Only the latest one owed is held, so a long gap
 // doesn't stack three trials up. `held` is the list of past hearings ({ day }).
-export function trialDue(receipts, held, today) {
-  const before = daysActiveBefore(receipts, today);
+export function trialDue(receipts, held, today, shown = []) {
+  const before = daysActiveBefore(receipts, today, shown);
   const last = Math.max(0, ...(held || []).map((h) => h.day || 0));
   const owed = TRIAL_DAYS.filter((d) => d > last && before >= d - 1);
   return owed.length ? owed[owed.length - 1] : null;
@@ -677,7 +685,8 @@ export function sequelCandidates(receipts, today, now = Date.now(), days = 14, m
     const k = key(r.thing);
     if (seen.has(k)) continue;
     seen.add(k);
-    if (r.fu?.type === 'plan' || detectCrisis(r.thing) || detectCrisisCheck(r.thing) || detectOneWay(r.thing)) continue;
+    // The app's own pick of the day was never theirs to pick back up.
+    if (r.fu?.type === 'plan' || r.rule === 'pick' || detectCrisis(r.thing) || detectCrisisCheck(r.thing) || detectOneWay(r.thing)) continue;
     // A thread that's closed or let go is done being picked up.
     const root = threadRoot(receipts, r);
     if (root?.fu?.type === 'plan' || ['done', 'dropped'].includes(root?.thread?.state)) continue;
@@ -688,8 +697,8 @@ export function sequelCandidates(receipts, today, now = Date.now(), days = 14, m
 }
 
 // Which day of showing up `today` is. It only moves when something gets done, so a gap skips nothing.
-export const dayOfShowingUp = (receipts, today) => daysActiveBefore(receipts, today) + 1;
-export const ruleOn = (receipts, today) => ruleForDay(dayOfShowingUp(receipts, today));
+export const dayOfShowingUp = (receipts, today, shown = []) => daysActiveBefore(receipts, today, shown) + 1;
+export const ruleOn = (receipts, today, shown = []) => ruleForDay(dayOfShowingUp(receipts, today, shown));
 
 // Rounds of `rule` finished on `today`. Chickening out doesn't count.
 export function ruleRounds(receipts, rule, today) {
@@ -890,13 +899,20 @@ export function followUpDue(receipts, today) {
 // The big one with a date on it: asked about on that day, or the first open after it, for up to a week.
 // Not before. One at a time, the soonest date first.
 export const DATE_GRACE = 7;
+export function datedDueList(receipts, today) {
+  return (receipts || []).filter((r) => {
+    const due = r.fu?.type === 'plan' && r.fu.state === 'dated' ? r.fu.due : null;
+    if (!due || r.fu.snooze === today) return false;
+    const late = dayDiff(due, today);
+    return late >= 0 && late <= DATE_GRACE;
+  });
+}
 export function datedDue(receipts, today) {
   let best = null;
-  for (const r of receipts || []) {
-    const due = r.fu?.type === 'plan' && r.fu.state === 'dated' ? r.fu.due : null;
-    if (!due || r.fu.snooze === today) continue;
-    const late = dayDiff(due, today);
-    if (late >= 0 && late <= DATE_GRACE && (!best || due < best.fu.due)) best = r;
+  for (const r of datedDueList(receipts, today)) {
+    // The one they're picking a date for stays up until they pick or back out.
+    if (r.fu.picking) return r;
+    if (!best || r.fu.due < best.fu.due) best = r;
   }
   return best;
 }
@@ -1163,7 +1179,7 @@ export function relatedThreads(receipts, root, today = dateKey(), now = Date.now
 // same four words as the guess. Kept on the big one or the thread (`notes`). The latest one is what the
 // check-ins show, and how it went is evidence: the brain's guess against what actually happened.
 // Found missing by tester 8 (simulated), 2026-11-15: "the rest of the raise story never makes it into the app".
-export const NOTE_MAX = 120;
+export const NOTE_MAX = 160;
 export const latestNote = (r) => (r?.notes?.length ? r.notes[r.notes.length - 1] : null);
 
 // The latest "how it went" on the record, or null.

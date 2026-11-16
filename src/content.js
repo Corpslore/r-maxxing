@@ -211,6 +211,12 @@ export const DRAFTS = [
     'can’t make it this time but have fun',
     'gonna pass on this one but ty for inviting me',
   ] },
+  { id: 'thanks', label: 'SAY THANK YOU', subject: 'Thank you', variants: [
+    'Hey {name}, thank you for [what they did]. It really helped.',
+    'Hey {name}, I wanted to say thank you for [what they did]. It meant a lot.',
+  ], casual: [
+    'ok real thank you for [what they did]. owe you one',
+  ] },
   { id: 'favor', label: 'ASK A FAVOR', subject: 'Quick favor', variants: [
     'Hey {name}, could I ask you a favor? Totally fine to say no.',
     'Hey {name}, I could use a hand with something this week. Any chance you’re free for an hour?',
@@ -579,7 +585,7 @@ export const TIMER_LINES = [
   'You can decide later. You’re busy.',
   'Small step. Then the next one.',
   'Zero thoughts. Full send.',
-  'This is what Thursday is for.',
+  'This is what today is for.',
   'You don’t need a plan. You need a minute.',
   '{Bb}. You’re doing it.',
 ];
@@ -840,6 +846,7 @@ export const BOLD_DRAFTS = {
   decline: ['Hey {name}, I’m going to say no to this one. Thanks for asking me.'],
   refund: ['Hi, I’m requesting a full refund for order [number]. It [what went wrong]. Please confirm when it’s processed.'],
   favor: ['Hey {name}, I need a hand with [thing] on [day]. Can you help?'],
+  thanks: ['{name}, thank you for [what they did]. I mean it.'],
   reconnect: ['Hey {name}, I miss talking to you. Call this week?'],
   issue: ['Hey {name}, I need to bring something up: [the thing]. Can we talk tonight?'],
 };
@@ -963,12 +970,15 @@ export const FOLLOW_UP = {
     saved: 'ON FILE: {date}',
     savedSub: 'We’ll ask that day. Until then, the brain can clock out.',
     skip: 'I’d rather not say',
-    toast: 'On file. We’ll ask that day.',
-    moved: 'New date. On file.',
+    toast: 'On file for {date}. We’ll ask that day.',
+    moved: 'New date: {date}. On file.',
     early: 'Pick a day after today.',
     // WAITING TO HEAR BACK: they did their part; the answer is somebody else's. Ask again when it's due.
     waitTitle: 'WHEN DO YOU HEAR BACK?',
-    waited: 'Ball’s in their court. We’ll ask that day.',
+    // Hearing back runs past any deadline, so these aren't cut to it.
+    waitChips: [[7, 'IN A WEEK'], [30, 'IN A MONTH'], [42, 'IN 6 WEEKS']],
+    unpick: 'Never mind',
+    waited: 'Ball’s in their court. We’ll ask {date}.',
     // After TALKED TO SOMEBODY: the big one stays on file if it still needs deciding.
     next: 'STILL DECIDING?',
     nextSub: 'Put the next date on it. Or don’t, if it’s settled.',
@@ -979,7 +989,7 @@ export const FOLLOW_UP = {
     late: 'YOU PICKED {day}',
     title: 'THE BIG ONE.',
     sub: 'No push from us. Where’s it at?',
-    choices: [['decided', 'DECIDED'], ['talked', 'TALKED TO SOMEBODY'], ['waiting', 'WAITING TO HEAR BACK'], ['moved', 'NEEDS A NEW DATE'], ['drop', 'LETTING IT GO']],
+    choices: [['decided', 'DONE OR DECIDED'], ['talked', 'TALKED TO SOMEBODY'], ['waiting', 'WAITING TO HEAR BACK'], ['moved', 'NEEDS A NEW DATE'], ['drop', 'LETTING IT GO']],
   },
   wait: 'Okay. We’ll ask again tomorrow.',
   // For a message that never went out: no verdict, no evidence, off the list.
@@ -1411,13 +1421,25 @@ export const UPDATE = {
   last: 'LAST UPDATE, {when}',
   history: 'SO FAR',
   brain: {
-    lie: 'The brain said {said}. It went {was}. It lied again.',
-    called: 'The brain said {said}. It went {was}. Point for the brain.',
-    worse: 'The brain said {said}. It went {was}. Worse than it said, and you did it anyway.',
+    lie: 'Back on {when}, the brain said {said}. It went {was}. It lied again.',
+    called: 'Back on {when}, the brain said {said}. It went {was}. Point for the brain.',
+    worse: 'Back on {when}, the brain said {said}. It went {was}. Worse than it said, and you did it anyway.',
+    // Against the last update, only when it moved. Same as last time says nothing.
+    better: 'Better than {day}. That one was {prev}.',
+    rougher: 'Rougher than {day}. That one was {prev}. Still on the record.',
     hard: 'It went badly. That’s on the record too, and it doesn’t make it a mistake.',
   },
   onFile: 'ON FILE',
   next: 'NEXT CHECK {date}',
   tag: { big: 'THE BIG ONE', thread: 'STILL GOING' },
   week: 'WHAT HAPPENED',
+  now: 'WHERE’S IT AT NOW?',
+  // A date in what they wrote: offered as the next check, never set on its own.
+  nextAsk: 'MOVE THE NEXT CHECK?',
+  nextSaid: '{date} (YOU SAID)',
+  nextBefore: '{date} (DAY BEFORE IT’S DUE)',
+  // More than one big one open: which one, by the day it was named.
+  named: 'NAMED {date}',
+  more: '+{n} MORE DUE. IT’S UNDER ON FILE.',
+  count: '{n} LEFT',
 };

@@ -900,3 +900,9 @@ a.btn { text-decoration: none; }
 .slam-in .reveal-stamp { animation: stamp-slam .32s cubic-bezier(.2, 1.5, .4, 1) both; }
 @keyframes stamp-slam { from { transform: rotate(-5deg) scale(2.6); opacity: 0; } to { transform: rotate(-5deg) scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .slam-in .reveal-stamp { animation: none; } }
+
+/* v32: more due today, where it's at after an update, room left in a note */
+.fu-more { margin: 10px 0 0; font-family: "DM Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: .08em; opacity: .75; }
+.update-status { display: grid; gap: 8px; margin-top: 16px; }
+.note-count { margin: 4px 0 0; text-align: right; font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; color: var(--mute); }
+.update-next { display: grid; gap: 8px; margin-top: 16px; }
