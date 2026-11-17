@@ -5,7 +5,7 @@ import {
   KOANS, LESSONS, DRAFTS, MOONWALK_LABEL, MOVES, DAILY_MOVES, MOVE_CHIPS, MOVE_SUGGESTIONS, OBJECTIONS, ONE_WAY_COPY, PLAYBOOKS, QUIZ, CRISIS_CHECK_COPY,
   MOMENT_ODDS, RARE_LINES, THING_PLACEHOLDERS, THINK_TIMES, TYPES, UNLOCK_DAYS, VERDICTS,
   DARES, DRIP_AT, NUDGE_LINES, POKE_LINES, PUBLIC_URL, THEMES, TIMER_LINES, WARDROBE_INFO,
-  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES, ROUGH_LINES, TIME_GUESSES, WEEK, THREADS, UPDATE,
+  PRODUCTS, PRO_WARDROBE_INFO, RECEIPT_SKINS, TIP_THANKS, TRIAL, THINK_TIMER_LINES, RULES, LIAR_LINES, REVEAL, FAST_LINES, ROUGH_LINES, TIME_GUESSES, WEEK, THREADS, UPDATE, WAIT,
 } from './content.js';
 import { buy as buyProduct, isMockStore, loadProducts, owned as ownedProducts, restore as restorePurchases, storeAvailable } from './store.js';
 import { brainSVG, moodFor, setWorn, updateBrain } from './brain.js';
@@ -592,6 +592,33 @@ function dateChooser(r, bare = false, head = null) {
   </div>`;
 }
 
+// ---------- waiting on them ----------
+const waitChoices = (r) => `<div class="fu-choices"><button class="chip" data-a="wait-not-yet" data-id="${r.id}">${WAIT.notYet}</button><button class="chip" data-a="wait-heard" data-id="${r.id}">${WAIT.heard}</button></div>`;
+// "EXPECTED TUE, JAN 12 · 26 DAYS LEFT", or how far past it.
+function waitLine(r) {
+  const w = C.waitInfo(r, C.dateKey());
+  if (!w?.by) return '';
+  const txt = w.past ? fill(WAIT.past, { date: dueText(w.by), n: -w.left, days: w.left === -1 ? 'DAY' : 'DAYS' }) : fill(WAIT.left, { date: dueText(w.by), left: leftText(w.left) });
+  return `<p class="due-line">${txt}</p>`;
+}
+const checksLine = (w) => (w?.checks ? `<p class="wait-checks">${w.checks === 1 ? WAIT.checks.one : fill(WAIT.checks.many, { n: w.checks })}</p>` : '');
+// Once a week while they wait: NOT YET is one tap. Past the date they gave, CHASE IT.
+function waitCard(r, more) {
+  const w = C.waitInfo(r, C.dateKey());
+  return `<div class="fu-card date-due wait-card">
+    <p class="eyebrow">${[fill(WAIT.eyebrow, { n: w.week }), namedTag(r)].filter(Boolean).join(' · ')}</p>
+    <strong>${WAIT.title}</strong>
+    ${peek(r)}
+    ${waitLine(r)}
+    ${lastHTML(r)}
+    ${checksLine(w)}
+    ${waitChoices(r)}
+    ${w.past ? `<p class="fu-sub">${WAIT.chaseSub}</p><button class="btn" data-a="wait-chase" data-id="${r.id}">${WAIT.chase}</button>` : ''}
+    <div class="wait-links"><button class="link" data-a="wait-checked" data-id="${r.id}">${WAIT.checkedLink}</button><button class="link" data-a="update" data-id="${r.id}" data-back="home">${UPDATE.link}</button><button class="link" data-a="wait-change" data-id="${r.id}">${WAIT.change}</button></div>
+    ${more > 0 ? `<p class="fu-more">${fill(UPDATE.more, { n: more })}</p>` : ''}
+  </div>`;
+}
+
 // On the day picked for the big one (or the first open after it, for a week): one card, no push.
 // The lock screen only ever said "you picked today".
 function dateCard() {
@@ -601,6 +628,7 @@ function dateCard() {
   const D = FOLLOW_UP.dated;
   // Two on file for the same day: one card at a time, and a line so the other isn't lost.
   const more = C.datedDueList(S.receipts, today).length - 1;
+  if (r.fu.waiting && !r.fu.picking) return waitCard(r, more);
   const eyebrow = [r.fu.due === today ? D.today : fill(D.late, { day: dueText(r.fu.due) }), namedTag(r)].filter(Boolean).join(' · ');
   const body = r.fu.picking
     ? dateChooser(r, true)
@@ -770,6 +798,8 @@ const threadMeta = (th) => [th.parts === 1 ? THREADS.meta.one : fill(THREADS.met
 // ---------- what happened ----------
 const dayName = (at) => new Date(at).toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
 const wentWord = (n) => (n == null ? '' : DREAD[n].toUpperCase());
+// " · AWKWARD" for how it went, " · GOOD NEWS" for their answer, nothing for a line alone.
+const noteTail = (n) => (n?.news ? ` · ${WAIT.newsWord[n.news]}` : n?.was != null ? ` · ${wentWord(n.was)}` : '');
 // The brain's guess against how it went. Nothing when there was no guess.
 function brainLine(r, note) {
   if (note?.was == null) return '';
@@ -807,21 +837,22 @@ function nextFromNote(r, note) {
 // After an update on the big one's day: where it stands now, the same answers as the check-in card.
 function statusHTML(r) {
   if (!(r.fu?.type === 'plan' && r.fu.state === 'dated' && r.fu.due <= C.dateKey())) return '';
+  if (r.fu.waiting) return `<div class="update-status"><p class="eyebrow">${WAIT.title}</p>${waitChoices(r)}</div>`;
   return `<div class="update-status"><p class="eyebrow">${UPDATE.now}</p><div class="fu-choices">${FOLLOW_UP.dated.choices.map(([v, label]) => `<button class="chip" data-a="fu-dated" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div></div>`;
 }
 // The latest update, as the check-ins show it: when and how it went, the line blurred like the thing.
 function lastHTML(r) {
   const n = C.latestNote(r);
   if (!n) return '';
-  return `<p class="note-last">${fill(UPDATE.last, { when: dayName(n.at) })}${n.was != null ? ` · ${wentWord(n.was)}` : ''}</p>
+  return `<p class="note-last">${fill(UPDATE.last, { when: dayName(n.at) })}${noteTail(n)}</p>
     ${n.text ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show the update">${esc(n.text)}</button>` : ''}`;
 }
 // One line and how it went. Both optional; one of them is enough.
-function updateForm(r, ask = false) {
+function updateForm(r, ask = false, lineOnly = false) {
   return `<div class="update-form">
-    ${ask ? `<b>${UPDATE.ask}</b>` : ''}
-    <p class="eyebrow">${UPDATE.was}</p>
-    <div class="chips was-chips">${DREAD.map((w, i) => `<button class="chip ${view.noteWas === i ? 'on' : ''}" data-a="note-was" data-v="${i}">${w.toUpperCase()}</button>`).join('')}</div>
+    ${ask ? `<b>${lineOnly ? WAIT.lineAsk : UPDATE.ask}</b>` : ''}
+    ${lineOnly ? '' : `<p class="eyebrow">${UPDATE.was}</p>
+    <div class="chips was-chips">${DREAD.map((w, i) => `<button class="chip ${view.noteWas === i ? 'on' : ''}" data-a="note-was" data-v="${i}">${w.toUpperCase()}</button>`).join('')}</div>`}
     <textarea id="note" class="field note-field" rows="2" maxlength="${C.NOTE_MAX}" placeholder="${esc(UPDATE.placeholder)}" aria-label="What happened"></textarea>
     <p class="note-count" id="note-count" hidden></p>
     <button class="btn" data-a="note-save" data-id="${r.id}">${UPDATE.save}</button>
@@ -829,7 +860,7 @@ function updateForm(r, ask = false) {
 }
 function savedHTML(r, note) {
   const line = brainLine(r, note);
-  return `<div class="note-saved"><b>${UPDATE.saved}</b>${note.was != null ? `<span>${UPDATE.was} ${wentWord(note.was)}</span>` : ''}${line ? `<em>${esc(line)}</em>` : ''}</div>`;
+  return `<div class="note-saved"><b>${UPDATE.saved}</b>${note.news ? `<span>${WAIT.newsWord[note.news]}</span>` : note.was != null ? `<span>${UPDATE.was} ${wentWord(note.was)}</span>` : ''}${line ? `<em>${esc(line)}</em>` : ''}</div>`;
 }
 // More than one big one open: each says the day it was named, so the raise and the application aren't twins.
 const bigsOpen = () => C.onFile(S.receipts, C.dateKey()).filter((it) => it.big).length;
@@ -840,14 +871,15 @@ function onFileCard() {
   const items = C.onFile(S.receipts, today).slice(0, 3);
   if (!items.length) return '';
   return `<div class="onfile"><p class="eyebrow">${UPDATE.onFile}</p>${items.map((it) => {
-    const meta = [it.next ? fill(UPDATE.next, { date: dueText(it.next) }) : '', it.due ? fill(THREADS.due, { date: dueText(it.due), left: leftText(C.dayDiff(today, it.due)) }) : ''].filter(Boolean).join(' · ');
+    const meta = [it.by ? fill(WAIT.row, { date: dueText(it.by) }) : '', it.next ? fill(UPDATE.next, { date: dueText(it.next) }) : '', it.due ? fill(THREADS.due, { date: dueText(it.due), left: leftText(C.dayDiff(today, it.due)) }) : ''].filter(Boolean).join(' · ');
     const last = C.latestNote(it.r);
     return `<div class="onfile-row">
       <span class="onfile-tag">${it.big ? [UPDATE.tag.big, namedTag(it.r)].filter(Boolean).join(' · ') : UPDATE.tag.thread}</span>
       <button class="fu-thing peek" data-a="fu-peek" aria-label="Show what it was">${esc(it.r.thing)}</button>
       ${meta ? `<span class="onfile-meta">${esc(meta)}</span>` : ''}
-      ${last ? `<span class="onfile-meta">${fill(UPDATE.last, { when: dayName(last.at) })}${last.was != null ? ` · ${wentWord(last.was)}` : ''}</span>` : ''}
+      ${last ? `<span class="onfile-meta">${fill(UPDATE.last, { when: dayName(last.at) })}${noteTail(last)}</span>` : ''}
       <button class="link onfile-go" data-a="update" data-id="${it.r.id}" data-back="home">${UPDATE.link}</button>
+      ${it.by ? `<button class="link onfile-go" data-a="wait-checked" data-id="${it.r.id}">${WAIT.checkedLink}</button>` : ''}
     </div>`;
   }).join('')}</div>`;
 }
@@ -2059,7 +2091,7 @@ VIEWS.week = () => {
       ${going.length ? section(THREADS.pickup, `<ul class="week-open">${going.map((th) => `<li><span>${esc(th.r.thing)}<em>${esc(threadMeta(th))}</em></span><button class="chip" data-a="thread-go" data-id="${th.r.id}">${THREADS.card.go}</button></li>`).join('')}</ul>`) : ''}
       ${notes.length ? section(UPDATE.week, `<ul class="week-notes">${notes.map(({ r, note }) => {
         const big = C.isBigOne(S.receipts, r);
-        return `<li><span class="note-when">${dayName(note.at)}${note.was != null ? ` · ${wentWord(note.was)}` : ''}</span>
+        return `<li><span class="note-when">${dayName(note.at)}${noteTail(note)}</span>
           ${big ? `<span class="hush">${UPDATE.tag.big} · HIDDEN</span>` : `<strong>${esc(r.thing)}</strong>`}
           ${note.text ? (big ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show the update">${esc(note.text)}</button>` : `<em>${esc(note.text)}</em>`) : ''}</li>`;
       }).join('')}</ul>`) : ''}
@@ -2082,7 +2114,7 @@ VIEWS.update = () => {
   if (!r) return VIEWS.home();
   const big = C.isBigOne(S.receipts, r);
   const past = (r.notes || []).slice(-3).reverse();
-  const history = past.length ? `<div class="note-history"><p class="eyebrow">${UPDATE.history}</p>${past.map((n) => `<p class="note-row"><span>${dayName(n.at)}${n.was != null ? ` · ${wentWord(n.was)}` : ''}</span>${n.text ? (big ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show the update">${esc(n.text)}</button>` : `<em>${esc(n.text)}</em>`) : ''}</p>`).join('')}</div>` : '';
+  const history = past.length ? `<div class="note-history"><p class="eyebrow">${UPDATE.history}</p>${past.map((n) => `<p class="note-row"><span>${dayName(n.at)}${noteTail(n)}</span>${n.text ? (big ? `<button class="fu-thing peek" data-a="fu-peek" aria-label="Show the update">${esc(n.text)}</button>` : `<em>${esc(n.text)}</em>`) : ''}</p>`).join('')}</div>` : '';
   return {
     html: step({
       title: UPDATE.title,
@@ -2095,6 +2127,55 @@ VIEWS.update = () => {
       foot: view.noted ? `<button class="btn mega" data-a="update-back">${UPDATE.back}</button>` : `<button class="link" data-a="update-back">${UPDATE.never}</button>`,
     }),
   };
+};
+
+// Waiting on them: they answered. Three ways it can go; none of them is the brain's call.
+VIEWS.heard = () => {
+  const r = S.receipts.find((x) => x.id === view.id);
+  if (!r?.fu) return VIEWS.home();
+  return {
+    html: step({
+      title: WAIT.heardTitle,
+      eyebrow: `<span class="rule-tag">${UPDATE.eyebrowBig}</span>`,
+      max: 140,
+      back: false,
+      top: '<div style="flex:1"></div>',
+      sub: peek(r),
+      body: `<p class="fu-sub">${WAIT.heardSub}</p><div class="fu-choices news-choices">${WAIT.news.map(([v, label]) => `<button class="chip" data-a="news" data-id="${r.id}" data-v="${v}">${label}</button>`).join('')}</div><p class="wait-checks">${WAIT.moreHint}</p>`,
+      foot: `<button class="link" data-a="tab" data-to="home">${UPDATE.never}</button>`,
+    }),
+  };
+};
+// Yes gets the party; no gets a quiet screen. Both take one line for the record and offer a next step.
+VIEWS.news = () => {
+  const r = S.receipts.find((x) => x.id === view.id);
+  if (!r?.fu) return VIEWS.home();
+  const yes = r.fu.result === 'yes';
+  const W = yes ? WAIT.yes : WAIT.no;
+  const written = view.noted;
+  return {
+    tone: yes ? 'lime' : undefined,
+    html: step({
+      title: W.a,
+      max: 170,
+      center: true,
+      back: false,
+      top: '<div style="flex:1"></div>',
+      sub: esc(W.sub),
+      body: `${yes ? `<p class="pill">+${r.fu.wis} WIS</p>` : ''}${written ? savedHTML(r, written) : updateForm(r, true, true)}${['done', 'dated'].includes(r.fu.state) ? `<div class="verdict-date">${dateChooser(r, false, yes ? THREADS.stillLeft : WAIT.noNext)}</div>` : ''}`,
+      slam: yes,
+      foot: '<button class="btn mega" data-a="tab" data-to="home">MOVE ON</button>',
+    }),
+  };
+};
+VIEWS.news.after = () => {
+  if (!view.fresh) return;
+  view.fresh = false;
+  if (S.receipts.find((x) => x.id === view.id)?.fu?.result !== 'yes') return buzz(20);
+  sfx.boom();
+  shake();
+  buzz(40);
+  celebrate({ shape: 'star', motion: 'burst', count: 24 });
 };
 
 // A thread closed: how many parts it took, and since when.
@@ -2573,7 +2654,7 @@ function refreshNudges() {
   if (thread?.why === 'next' && thread.picked === C.dateKey(times[0])) lines.unshift(THREADS.nudge);
   // The big one's day: "you picked today", never what it is.
   const dated = times[0] && C.datedDue(S.receipts, C.dateKey(times[0]));
-  if (dated && dated.fu.due === C.dateKey(times[0])) lines.unshift(FOLLOW_UP.nudge.dated);
+  if (dated && dated.fu.due === C.dateKey(times[0])) lines.unshift(dated.fu.waiting ? WAIT.nudge : FOLLOW_UP.nudge.dated);
   // Brain court beats everything on the day it's in session.
   if (times[0] && C.trialDue(S.receipts, S.trials, C.dateKey(times[0]), shown())) lines.unshift(TRIAL.nudge);
   return scheduleNudges(times, lines);
@@ -3324,7 +3405,11 @@ const ACTIONS = {
     const moved = r.fu.state === 'dated';
     const waited = !!r.fu.wait;
     if (moved || asked) touchDay();
-    Object.assign(r.fu, { state: 'dated', due: key, picking: false, snooze: null, wait: false });
+    // Waiting on them: the date is when they'll answer; the checks come weekly till then.
+    const due = waited ? C.waitNext(today, key) : key;
+    if (waited) r.fu.waiting = { since: r.fu.waiting?.since || today, by: key, checks: r.fu.waiting?.checks || [] };
+    else delete r.fu.waiting;
+    Object.assign(r.fu, { state: 'dated', due, picking: false, snooze: null, wait: false });
     buzz(20);
     if (asked) {
       r.fu.result = 'date';
@@ -3337,7 +3422,66 @@ const ACTIONS = {
     save();
     refreshNudges();
     render();
+    if (waited && due !== key) return toast(fill(WAIT.started, { date: dueText(key) }));
     return toast(fill(waited ? FOLLOW_UP.date.waited : moved ? FOLLOW_UP.date.moved : FOLLOW_UP.date.toast, { date: dueText(key) }));
+  },
+  // Waiting on them: NOT YET is the whole check. It counts as showing up.
+  'wait-not-yet': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.fu?.waiting) return undefined;
+    const today = C.dateKey();
+    r.fu.due = C.waitNext(today, r.fu.waiting.by);
+    touchDay();
+    save();
+    refreshNudges();
+    if (view.name !== 'home') go('home');
+    else render();
+    return toast(fill(WAIT.notYetToast, { date: dueText(r.fu.due) }));
+  },
+  'wait-checked': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.fu?.waiting) return undefined;
+    r.fu.waiting.checks = [...(r.fu.waiting.checks || []).slice(-60), Date.now()];
+    const n = C.waitInfo(r, C.dateKey()).checks;
+    save();
+    render();
+    return toast(fill(WAIT.checkedToast[Math.min(n, 3) - 1], { n }));
+  },
+  'wait-change': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.fu) return undefined;
+    Object.assign(r.fu, { picking: true, wait: true });
+    save();
+    return render();
+  },
+  'wait-heard': (d) => (S.receipts.some((x) => x.id === d.id) ? go('heard', { id: d.id }) : undefined),
+  // Their answer. Yes and no close it (with a way to put a next step on file); not an answer yet asks for a new date.
+  news: (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r?.fu || !C.NEWS.includes(d.v)) return undefined;
+    C.addNote(r, { news: d.v });
+    touchDay();
+    refreshNudges();
+    if (d.v === 'more') {
+      Object.assign(r.fu, { state: 'dated', due: C.dateKey(), picking: true, wait: true, snooze: null });
+      save();
+      go('home');
+      return toast(WAIT.more);
+    }
+    if (r.fu.waiting) r.fu.waited = { ...r.fu.waiting, until: C.dateKey() };
+    delete r.fu.waiting;
+    Object.assign(r.fu, { state: 'done', result: d.v, wis: d.v === 'yes' ? 5 : 0, picking: false, wait: false });
+    S.wis += r.fu.wis;
+    save();
+    return go('news', { id: r.id, fresh: true, noted: null });
+  },
+  // Past the date they gave: one follow-up, written by the app if they want, the big one still hidden.
+  'wait-chase': (d) => {
+    const r = S.receipts.find((x) => x.id === d.id);
+    if (!r) return undefined;
+    S.active = newLoop({ thing: r.thing, of: r.id, big: true, source: 'chase', step: 'fast', verdict: 'send', move: WAIT.chaseMove, draftKind: 'followup', thoughtMin: r.thoughtMin || null });
+    save();
+    return go('loop');
   },
   'fu-unpick': (d) => {
     const r = S.receipts.find((x) => x.id === d.id);

@@ -1405,6 +1405,41 @@ export const THREADS = {
 
 // What happened: one line and how it went, when something happens off the app. Kept on the big one or the
 // thread; check-ins show the latest. How it went uses the same four words as the guess, so it's evidence.
+// Waiting on them: a big one handed off (WAITING TO HEAR BACK) with the answer weeks out. A one-tap check each
+// week, a countdown to the date they expect, a tally of how often the brain made them check, and their answer.
+export const WAIT = {
+  eyebrow: 'WAITING ON THEM · WEEK {n}',
+  title: 'ANYTHING FROM THEM?',
+  left: 'EXPECTED {date} · {left}',
+  past: 'EXPECTED {date} · {n} {days} PAST IT',
+  row: 'WAITING ON THEM · EXPECTED {date}',
+  notYet: 'NOT YET',
+  heard: 'HEARD BACK',
+  change: 'Change the date',
+  started: 'Ball’s in their court. A quick check every week till {date}.',
+  notYetToast: 'Okay. Next check {date}. Close the portal.',
+  // "I checked again": the brain's laps, counted. It doesn't count as showing up.
+  checkedLink: 'I checked again',
+  checks: { one: 'You checked once this week. Same answer.', many: 'You checked {n} times this week. Same answer {n} times.' },
+  checkedToast: ['Logged. The answer didn’t move.', '{n} checks this week. The portal does not care.', '{n} this week. The brain is refreshing for sport now.'],
+  // Past the date they gave: one follow-up is allowed.
+  chase: 'CHASE IT',
+  chaseSub: 'It’s past the date they gave. One polite follow-up is allowed. Encouraged, even.',
+  chaseMove: 'Send one short follow-up. Ask when they expect to decide.',
+  nudge: 'Anything from them? One tap. Then back to your life.',
+  // Their answer.
+  heardTitle: 'WHAT DID|THEY SAY?',
+  heardSub: 'Their call, not the brain’s. Whatever it is, you did your part.',
+  news: [['yes', 'GOOD NEWS'], ['no', 'BAD NEWS'], ['more', 'NOT AN ANSWER YET']],
+  moreHint: 'An interview, a waitlist, more paperwork.',
+  newsWord: { yes: 'GOOD NEWS', no: 'BAD NEWS', more: 'NOT YET' },
+  more: 'Still their move. When’s the new date?',
+  yes: { a: 'THEY SAID|YES.', sub: 'You did the scary part already. This is the receipt.' },
+  no: { a: 'THEY SAID|NO.', sub: 'You went for it anyway. That part’s on the record, and it’s yours.' },
+  lineAsk: 'ONE LINE FOR THE RECORD?',
+  noNext: { title: 'ANYTHING NEXT?', sub: 'Another round, somewhere else, or nothing. Nothing is allowed.' },
+};
+
 export const UPDATE = {
   link: '+ What happened',
   title: 'WHAT|HAPPENED?',

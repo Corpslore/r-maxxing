@@ -906,3 +906,9 @@ a.btn { text-decoration: none; }
 .update-status { display: grid; gap: 8px; margin-top: 16px; }
 .note-count { margin: 4px 0 0; text-align: right; font-family: "DM Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; color: var(--mute); }
 .update-next { display: grid; gap: 8px; margin-top: 16px; }
+
+/* v34: waiting on them */
+.wait-checks { margin: 8px 0 0; font-family: "DM Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: .06em; opacity: .75; }
+.wait-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin-top: 6px; }
+.wait-card .btn { margin-top: 10px; }
+.news-choices { margin-top: 14px; }

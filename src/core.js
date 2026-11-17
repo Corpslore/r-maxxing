@@ -904,8 +904,29 @@ export function datedDueList(receipts, today) {
     const due = r.fu?.type === 'plan' && r.fu.state === 'dated' ? r.fu.due : null;
     if (!due || r.fu.snooze === today) return false;
     const late = dayDiff(due, today);
-    return late >= 0 && late <= DATE_GRACE;
+    // Waiting on them: the weekly check waits for them, however long they were away.
+    return late >= 0 && (late <= DATE_GRACE || !!r.fu.waiting);
   });
+}
+
+// ---------- waiting on them ----------
+// WAITING TO HEAR BACK with the answer weeks out: one tap a week ("NOT YET") until the date they expect,
+// so the big one doesn't vanish until then. Found by tester 8 (simulated): after submitting, the next
+// check was New Year's Day and nothing in between.
+export const WAIT_EVERY = 7;
+// The next check: a week from today, or the expected date if that comes first.
+export function waitNext(today, by) {
+  const week = addDays(today, WAIT_EVERY);
+  return by && by > today && by < week ? by : week;
+}
+// Where the wait stands: which week, days to the date they expect (negative once it's past),
+// and how often the brain made them check this week.
+export function waitInfo(r, today = dateKey(), now = Date.now()) {
+  const w = r?.fu?.waiting;
+  if (!w) return null;
+  const left = w.by ? dayDiff(today, w.by) : null;
+  const checks = (w.checks || []).filter((t) => t > now - WAIT_EVERY * DAY_MS).length;
+  return { since: w.since, by: w.by || null, left, past: left != null && left < 0, week: Math.floor(dayDiff(w.since, today) / WAIT_EVERY) + 1, checks };
 }
 export function datedDue(receipts, today) {
   let best = null;
@@ -1002,6 +1023,9 @@ function monthDayKey(today, m, d, yr) {
   const y = Number(today.slice(0, 4));
   const k = real(y);
   if (!k) return null;
+  // "dec 1" said on Jan 19 is about last month, not next December.
+  const prev = real(y - 1);
+  if (prev && dayDiff(today, prev) >= -60) return null;
   const diff = dayDiff(today, k);
   if (diff >= 0) return k;
   // "dec 1" said on Dec 10 is about the past. "jan 5" said in November is next year.
@@ -1189,11 +1213,14 @@ export function noteWas(r) {
 }
 
 // Adds an update. Nothing to add (no line, no "how it went") adds nothing.
-export function addNote(r, { text = '', was = null } = {}, at = Date.now()) {
+export const NEWS = ['yes', 'no', 'more'];
+export function addNote(r, { text = '', was = null, news = null } = {}, at = Date.now()) {
   const line = String(text || '').replace(/\s+/g, ' ').trim().slice(0, NOTE_MAX);
   const how = was == null || was === '' ? null : Number(was);
-  if (!r || (!line && how == null)) return null;
-  const note = { at, text: line, was: how >= 0 && how <= 3 ? how : null };
+  const heard = NEWS.includes(news) ? news : null;
+  if (!r || (!line && how == null && !heard)) return null;
+  // Their answer isn't the brain's call: the guess was about doing it, not about what they decide.
+  const note = { at, text: line, was: heard ? null : how >= 0 && how <= 3 ? how : null, ...(heard ? { news: heard } : {}) };
   r.notes = [...(r.notes || []), note];
   return note;
 }
@@ -1220,7 +1247,7 @@ export function onFile(receipts, today = dateKey(), now = Date.now()) {
   };
   const big = (receipts || [])
     .filter((r) => r.fu?.type === 'plan' && ['open', 'dated'].includes(r.fu.state))
-    .map((r) => ({ r, big: true, next: r.fu.state === 'dated' && r.fu.due >= today ? r.fu.due : null, due: dueOf(r.thing) }));
+    .map((r) => ({ r, big: true, next: r.fu.state === 'dated' && r.fu.due >= today ? r.fu.due : null, due: dueOf(r.thing), by: r.fu.waiting?.by || null }));
   const threads = openThreads(receipts, today, now).filter((th) => th.due).map((th) => ({ r: th.r, big: false, next: th.next, due: th.due }));
   const far = '9999-12-31';
   return [...big, ...threads].sort((a, b) => (a.due || far).localeCompare(b.due || far) || (a.next || far).localeCompare(b.next || far));
