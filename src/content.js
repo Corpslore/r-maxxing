@@ -976,7 +976,7 @@ export const FOLLOW_UP = {
     // WAITING TO HEAR BACK: they did their part; the answer is somebody else's. Ask again when it's due.
     waitTitle: 'WHEN DO YOU HEAR BACK?',
     // Hearing back runs past any deadline, so these aren't cut to it.
-    waitChips: [[7, 'IN A WEEK'], [30, 'IN A MONTH'], [42, 'IN 6 WEEKS']],
+    waitChips: [[7, 'IN A WEEK'], [30, 'IN A MONTH'], [42, 'IN 6 WEEKS'], [90, 'IN 3 MONTHS']],
     unpick: 'Never mind',
     waited: 'Ball’s in their court. We’ll ask {date}.',
     // After TALKED TO SOMEBODY: the big one stays on file if it still needs deciding.
@@ -1256,7 +1256,8 @@ export const RULES = {
   today: 'DAY {n} · TODAY’S RULE',
   done: 'DAY {n} · {name} ✓ DONE',
   progress: '{rounds} OF {need}',
-  soonTitle: 'TOMORROW: {name}',
+  // Rules move with the days you show up, not the calendar: "tomorrow" was six days later for a weekly user.
+  soonTitle: 'NEXT TIME: {name}',
   // Lock screens are public: the rule only, never the thing or a name.
   nudge: 'Today’s rule: {name}. {tease}',
   offer: 'TOMORROW: {name}. WANT A HEADS-UP?',
@@ -1288,6 +1289,7 @@ export const WEEK = {
     bailed: 'More chickened out than done. You still showed up {days} days, and showing up is the habit.',
     quiet: 'Quiet week. Still: {things} done, and that’s more than the brain wanted.',
     done: '{things} moved this week. Every one of them was supposed to be a whole thing.',
+    notes: '{n} updates on the record this week. Most of the big stuff happens off the app.',
   },
   empty: 'Nothing in the last seven days yet. The week starts with one.',
   link: 'THIS WEEK',
@@ -1409,6 +1411,12 @@ export const THREADS = {
 // week, a countdown to the date they expect, a tally of how often the brain made them check, and their answer.
 export const WAIT = {
   eyebrow: 'WAITING ON THEM · WEEK {n}',
+  eyebrowOf: 'WAITING ON THEM · WEEK {n} OF {of}',
+  eyebrowLong: 'WAITING ON THEM',
+  rowPast: 'WAITING ON THEM · EXPECTED {date} · {n} {days} PAST IT',
+  placeholder: 'what happened, even if it’s nothing yet',
+  // Their answer can come any day, not just on a check day (tester 8, simulated: alternate #9 came on a Tuesday).
+  anyDay: 'DID THEY ANSWER?',
   title: 'ANYTHING FROM THEM?',
   left: 'EXPECTED {date} · {left}',
   past: 'EXPECTED {date} · {n} {days} PAST IT',
@@ -1417,7 +1425,8 @@ export const WAIT = {
   heard: 'HEARD BACK',
   change: 'Change the date',
   started: 'Ball’s in their court. A quick check every week till {date}.',
-  notYetToast: 'Okay. Next check {date}. Close the portal.',
+  startedLong: 'Ball’s in their court. A quick check every four weeks till {date}.',
+  notYetToast: ['Okay. Next check {date}. Close the portal.', 'Not yet. Next check {date}. Go live your life.', 'Noted. {date}, then. Nothing to do till then.'],
   // "I checked again": the brain's laps, counted. It doesn't count as showing up.
   checkedLink: 'I checked again',
   checks: { one: 'You checked once this week. Same answer.', many: 'You checked {n} times this week. Same answer {n} times.' },
@@ -1434,10 +1443,24 @@ export const WAIT = {
   moreHint: 'An interview, a waitlist, more paperwork.',
   newsWord: { yes: 'GOOD NEWS', no: 'BAD NEWS', more: 'NOT YET' },
   more: 'Still their move. When’s the new date?',
+  moreView: { a: 'NOT AN|ANSWER YET.', sub: 'An interview, a waitlist, more paperwork. Still in it.' },
+  moreNext: { title: 'WHEN’S THE NEXT WORD?', sub: 'Pick when to check back. A long wait gets a check once a month.' },
   yes: { a: 'THEY SAID|YES.', sub: 'You did the scary part already. This is the receipt.' },
   no: { a: 'THEY SAID|NO.', sub: 'You went for it anyway. That part’s on the record, and it’s yours.' },
   lineAsk: 'ONE LINE FOR THE RECORD?',
   noNext: { title: 'ANYTHING NEXT?', sub: 'Another round, somewhere else, or nothing. Nothing is allowed.' },
+};
+
+// A round left open past the day: it waits on home instead of vanishing. Found by tester 8 (simulated): the court
+// made her name a third big one at 11pm, she put the phone down, and the app never brought it up again.
+export const PARKED = {
+  eyebrow: 'LEFT OPEN {day}',
+  title: 'YOU STARTED THIS.',
+  bigTitle: 'THE BIG ONE YOU NAMED.',
+  sub: 'Pick it back up where you left it, or let it go. No penalty either way.',
+  bigSub: 'The court made you name it. It’s still here, still hidden. Pick it back up, or let it go.',
+  go: 'PICK IT BACK UP',
+  drop: 'LET IT GO',
 };
 
 export const UPDATE = {

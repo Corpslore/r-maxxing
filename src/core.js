@@ -685,7 +685,8 @@ export function sequelCandidates(receipts, today, now = Date.now(), days = 14, m
     const k = key(r.thing);
     if (seen.has(k)) continue;
     seen.add(k);
-    // The app's own pick of the day was never theirs to pick back up.
+    // The app's own pick of the day was never theirs to pick back up, and a message that went out is finished.
+    if (r.kind && r.outcome === 'did' && !r.thread) continue;
     if (r.fu?.type === 'plan' || r.rule === 'pick' || detectCrisis(r.thing) || detectCrisisCheck(r.thing) || detectOneWay(r.thing)) continue;
     // A thread that's closed or let go is done being picked up.
     const root = threadRoot(receipts, r);
@@ -916,8 +917,17 @@ export function datedDueList(receipts, today) {
 export const WAIT_EVERY = 7;
 // The next check: a week from today, or the expected date if that comes first.
 export function waitNext(today, by) {
-  const week = addDays(today, WAIT_EVERY);
-  return by && by > today && by < week ? by : week;
+  // A long wait (an alternate list "through June") gets a check every four weeks, not every week.
+  const every = by && dayDiff(today, by) > 42 ? 28 : WAIT_EVERY;
+  const next = addDays(today, every);
+  return by && by > today && by < next ? by : next;
+}
+// A deadline in an update, in so many words: "docs due dec 15", "reply by jan 29". Not "requests by fri" or
+// "tmrw": those were as often about something else (tester 8, simulated).
+const NOTE_DEADLINE = /\b(?:due|deadline|(?:reply|respond|answer|submit|send it|confirm|rsvp|register)\s+by)\b/;
+export function noteDeadline(text, today = dateKey()) {
+  const due = whenFromText(text, today).due;
+  return due && NOTE_DEADLINE.test(norm(text)) ? due : null;
 }
 // Where the wait stands: which week, days to the date they expect (negative once it's past),
 // and how often the brain made them check this week.
@@ -946,9 +956,16 @@ export function datedAhead(receipts, today) {
 // ---------- the week, looked back on ----------
 // What moved in the last seven days, what came back around, what the brain got wrong, what's still out there.
 export const WEEK_DAYS = 7;
-export function weekLook(receipts, now = Date.now()) {
+export function weekLook(receipts, now = Date.now(), shown = []) {
   const list = receipts || [];
   const since = now - WEEK_DAYS * 86400000;
+  // Days they showed up this week: a round, an update or a check-in (tester 8, simulated: "3 days you showed up"
+  // in a week of daily updates, the week she submitted).
+  const shownDays = new Set((shown || []).filter((k) => k > dateKey(new Date(since)) && k <= dateKey(new Date(now))));
+  for (const r of list) {
+    if (r.at > since && r.at <= now) shownDays.add(dateKey(new Date(r.at)));
+    for (const n of r.notes || []) if (n.at > since && n.at <= now) shownDays.add(dateKey(new Date(n.at)));
+  }
   const week = list.filter((r) => r.at > since && r.at <= now && !detectCrisis(r.thing || '') && !detectCrisisCheck(r.thing || ''));
   const done = week.filter((r) => r.outcome !== 'bailed');
   const key = (t) => String(t || '').trim().toLowerCase();
@@ -965,7 +982,7 @@ export function weekLook(receipts, now = Date.now()) {
   const checked = done.filter((r) => r.dread != null && r.reality != null);
   const timed = done.filter((r) => r.thoughtMin && r.doneSec);
   return {
-    days: new Set(week.map((r) => dateKey(new Date(r.at)))).size,
+    days: shownDays.size,
     did: done.filter((r) => r.outcome === 'did').length,
     kinda: done.filter((r) => r.outcome === 'some').length,
     bailed: week.filter((r) => r.outcome === 'bailed').length,
@@ -1203,7 +1220,7 @@ export function relatedThreads(receipts, root, today = dateKey(), now = Date.now
 // same four words as the guess. Kept on the big one or the thread (`notes`). The latest one is what the
 // check-ins show, and how it went is evidence: the brain's guess against what actually happened.
 // Found missing by tester 8 (simulated), 2026-11-15: "the rest of the raise story never makes it into the app".
-export const NOTE_MAX = 160;
+export const NOTE_MAX = 240;
 export const latestNote = (r) => (r?.notes?.length ? r.notes[r.notes.length - 1] : null);
 
 // The latest "how it went" on the record, or null.

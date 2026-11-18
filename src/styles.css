@@ -912,3 +912,4 @@ a.btn { text-decoration: none; }
 .wait-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin-top: 6px; }
 .wait-card .btn { margin-top: 10px; }
 .news-choices { margin-top: 14px; }
+.parked-card .fu-choices { margin-top: 10px; }
